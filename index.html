@@ -276,8 +276,10 @@ function examLabel(exam) {
 
 function buildYearOptions(selectEl, onChange) {
   const years = [...new Set(DB.questions.map(q => q.year))].sort((a,b) => b - a);
+  const prevValue = selectEl.value || 'all';
   selectEl.innerHTML = '<option value="all">全期間（2013-2026）</option>' +
     years.map(y => `<option value="${y}">${y}年のみ</option>`).join('');
+  selectEl.value = prevValue;
   selectEl.onchange = onChange;
 }
 
