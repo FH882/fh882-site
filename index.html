@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FH882</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans','Noto Sans JP',sans-serif;font-size:16px;color:#1a1a1a;background:#f0f2f5;-webkit-text-size-adjust:100%}
+:root{
+  --primary:#1B4F8A;--primary-dark:#133a6e;--primary-light:#e8f0fb;
+  --success:#27ae60;--error:#e74c3c;--warn:#e67e22;
+  --text:#2c3e50;--text-light:#7f8c8d;--border:#dee2e6;
+  --bg:#f0f2f5;--card:#fff;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08);
+  --dA:#2ecc71;--dB:#8bc34a;--dC:#f1c40f;--dD:#e67e22;--dE:#e74c3c
+}
+.screen{display:none;min-height:100vh;width:100%}
+.screen.active{display:flex;flex-direction:column}
+.btn{display:block;width:100%;padding:16px 20px;border:none;border-radius:var(--radius);font-size:16px;font-weight:600;cursor:pointer;text-align:center;transition:opacity .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-secondary{background:#fff;color:var(--primary);border:2px solid var(--primary)}
+
+#loading{position:fixed;inset:0;background:var(--primary);display:flex;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:16px;color:#fff}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#login-screen{background:linear-gradient(135deg,var(--primary) 0%,#2980b9 100%);justify-content:center;align-items:center;padding:24px}
+.login-box{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .icon{font-size:40px;display:block;margin-bottom:12px;letter-spacing:2px;font-weight:800;color:var(--primary)}
+.login-logo h1{font-size:20px;font-weight:700;color:var(--primary);line-height:1.4;letter-spacing:1px}
+.login-logo p{font-size:12px;color:var(--text-light);margin-top:4px}
+.form-group{margin-bottom:20px}
+.form-label{display:block;font-size:13px;font-weight:600;color:var(--text-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.form-input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:10px;font-size:16px;transition:border-color .2s;outline:none;-webkit-appearance:none}
+.form-input:focus{border-color:var(--primary)}
+.login-error{color:var(--error);font-size:13px;text-align:center;margin-bottom:16px;display:none}
+.login-error.show{display:block}
+
+#app-shell{background:var(--bg);display:none;min-height:100vh;flex-direction:column}
+#app-shell.active{display:flex}
+.app-header{background:var(--primary);color:#fff;padding:18px 20px 14px;flex-shrink:0}
+.app-header-top{display:flex;justify-content:space-between;align-items:center}
+.app-header h1{font-size:16px;font-weight:800;letter-spacing:1px}
+.app-header .logout-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:6px 10px;border-radius:8px;cursor:pointer}
+.tabbar{display:flex;background:var(--primary-dark);flex-shrink:0}
+.tab-btn{flex:1;padding:12px 8px;text-align:center;background:none;border:none;color:rgba(255,255,255,.65);font-size:13px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;-webkit-tap-highlight-color:transparent}
+.tab-btn.active{color:#fff;border-bottom-color:#fff}
+.app-content{flex:1;overflow-y:auto;padding:14px 16px 60px;-webkit-overflow-scrolling:touch}
+.view{display:none}
+.view.active{display:block}
+
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.card-title .estimate-tag{font-size:10px;font-weight:600;color:var(--warn);background:#fff3e0;padding:2px 6px;border-radius:8px;text-transform:none;letter-spacing:0}
+
+.stat-row{display:flex;gap:10px;margin-bottom:12px}
+.stat-card{flex:1;background:var(--primary-light);border-radius:10px;padding:12px;text-align:center}
+.stat-num{font-size:22px;font-weight:800;color:var(--primary);display:block}
+.stat-label{font-size:11px;color:var(--text-light)}
+
+select.year-filter{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:#fff;color:var(--text);margin-bottom:12px}
+
+.bar-row{margin-bottom:10px}
+.bar-row:last-child{margin-bottom:0}
+.bar-label{display:flex;justify-content:space-between;font-size:13px;color:var(--text);margin-bottom:4px}
+.bar-label .bar-count{color:var(--text-light);font-weight:600}
+.bar-track{height:10px;background:#eee;border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;background:var(--primary);border-radius:5px}
+
+.diff-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin-top:6px}
+.diff-seg{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+.diff-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text-light)}
+.diff-legend span{display:inline-flex;align-items:center;gap:4px}
+.diff-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.badge-diff{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:5px;font-size:11px;font-weight:800;color:#fff;padding:0 5px}
+
+.subject-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.subject-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;cursor:pointer;border-left:4px solid var(--primary);-webkit-tap-highlight-color:transparent}
+.subject-card:active{transform:scale(.98)}
+.subject-card .sc-name{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:6px;min-height:34px}
+.subject-card .sc-share{font-size:20px;font-weight:800;color:var(--primary)}
+.subject-card .sc-count{font-size:11px;color:var(--text-light)}
+
+.chip-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.chip{flex-shrink:0;padding:8px 14px;border-radius:20px;background:#fff;border:2px solid var(--border);font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
+
+.term-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer}
+.term-row:last-child{border-bottom:none}
+.term-name{font-size:13.5px;font-weight:600;color:var(--text)}
+.term-count{font-size:12px;color:var(--primary);font-weight:700;background:var(--primary-light);padding:2px 8px;border-radius:10px}
+.term-detail{display:none;padding:8px 0 4px;font-size:12px;color:var(--text-light);line-height:1.6}
+.term-detail.open{display:block}
+.term-exams{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.exam-chip{font-size:11px;background:#f0f2f5;color:var(--text);padding:3px 7px;border-radius:6px}
+
+.priority-row{padding:10px 0;border-bottom:1px solid #f0f0f0}
+.priority-row:last-child{border-bottom:none}
+.priority-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.priority-name{font-size:13px;font-weight:600;color:var(--text);flex:1;margin-right:8px}
+.priority-badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:10px;white-space:nowrap}
+.priority-high{background:#fdecea;color:var(--error)}
+.priority-mid{background:#fff3e0;color:var(--warn)}
+.priority-low{background:#eef6f0;color:var(--success)}
+.priority-meta{font-size:11px;color:var(--text-light)}
+
+.num-row{padding:10px 0;border-bottom:1px solid #f0f0f0}
+.num-row:last-child{border-bottom:none}
+.num-value{font-size:15px;font-weight:800;color:var(--primary)}
+.num-meaning{font-size:12.5px;color:var(--text);margin-top:2px}
+.num-meta{font-size:11px;color:var(--text-light);margin-top:2px}
+
+table.heatmap{border-collapse:collapse;font-size:10.5px;width:100%}
+table.heatmap th,table.heatmap td{padding:4px 5px;text-align:center;border:1px solid #eee;white-space:nowrap}
+table.heatmap th{background:#f7f8fa;font-weight:700;color:var(--text-light);position:sticky;top:0}
+table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);position:sticky;left:0;background:#fff;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.heatmap-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.hm0{background:#fff}.hm1{background:#e8f0fb}.hm2{background:#c3daf5}.hm3{background:#8fbdec}.hm4{background:#5a9fe0}
+
+.q-row{padding:10px 0;border-bottom:1px solid #f0f0f0}
+.q-row:last-child{border-bottom:none}
+.q-row-top{display:flex;gap:8px;align-items:center;margin-bottom:3px}
+.q-exam{font-size:11px;color:var(--text-light);font-weight:600}
+.q-summary{font-size:13px;color:var(--text);line-height:1.5}
+
+.search-box{position:sticky;top:0;background:var(--bg);padding-bottom:10px;z-index:5}
+.search-input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:12px;font-size:15px;background:#fff}
+.search-empty{text-align:center;color:var(--text-light);font-size:13px;padding:40px 20px}
+.section-h{font-size:12px;font-weight:700;color:var(--text-light);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.section-h:first-child{margin-top:0}
+
+.footer-note{font-size:11px;color:var(--text-light);text-align:center;padding:14px 0 4px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="font-size:14px">読み込み中...</div>
+</div>
+
+<div id="login-screen" class="screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="icon">FH882</span>
+      <h1>Reference</h1>
+      <p>Ver.1.0.0</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="pw-input">パスワード</label>
+      <input type="password" id="pw-input" class="form-input" placeholder="パスワードを入力" autocomplete="current-password">
+    </div>
+    <div id="login-error" class="login-error">パスワードが正しくありません</div>
+    <button class="btn btn-primary" id="login-btn">ログイン</button>
+  </div>
+</div>
+
+<div id="app-shell">
+  <div class="app-header">
+    <div class="app-header-top">
+      <h1>FH882</h1>
+      <button class="logout-btn" id="logout-btn">ログアウト</button>
+    </div>
+  </div>
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="dashboard">ダッシュボード</button>
+    <button class="tab-btn" data-tab="subject">分野</button>
+    <button class="tab-btn" data-tab="search">検索</button>
+  </div>
+  <div class="app-content">
+
+    <div class="view active" id="view-dashboard">
+      <select class="year-filter" id="year-filter-dash"></select>
+      <div class="stat-row">
+        <div class="stat-card"><span class="stat-num" id="d-total">-</span><span class="stat-label">総問題数</span></div>
+        <div class="stat-card"><span class="stat-num" id="d-exams">-</span><span class="stat-label">対象回数</span></div>
+        <div class="stat-card"><span class="stat-num" id="d-calc">-</span><span class="stat-label">計算問題比率</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">分野別出題割合</div>
+        <div id="d-subject-bars"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">難易度分布（A:簡単 〜 E:難しい）</div>
+        <div id="d-difficulty"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">全体 頻出用語トップ10 <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="d-top-terms" class="chip-row" style="flex-wrap:wrap;overflow:visible"></div>
+      </div>
+      <div class="subject-grid" id="d-subject-grid"></div>
+    </div>
+
+    <div class="view" id="view-subject">
+      <div class="chip-row" id="subject-chips"></div>
+      <select class="year-filter" id="year-filter-subj"></select>
+      <div class="card">
+        <div class="card-title">出題優先度スコア（頻度×難易度×ブランク） <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="s-priority"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">頻出用語ランキング <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="s-terms"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">数値・しきい値集 <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="s-numbers"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">網羅ヒートマップ（回×論点）</div>
+        <div class="heatmap-wrap"><table class="heatmap" id="s-heatmap"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">論点の裏付けリスト <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="s-questions"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-search">
+      <div class="search-box">
+        <input type="text" class="search-input" id="search-input" placeholder="用語・キーワードで検索">
+      </div>
+      <div id="search-results"><div class="search-empty">用語や制度名を入力して検索してください</div></div>
+    </div>
+
+  </div>
+  <div class="footer-note">データはOCR抽出に基づく概算を含みます。難易度は原本目視照合済み。</div>
+</div>
+
+<script>
+const PASSWORD = '1329';
+const $ = id => document.getElementById(id);
+const DIFF_ORDER = ['A','B','C','D','E'];
+const DIFF_COLOR = {A:'var(--dA)',B:'var(--dB)',C:'var(--dC)',D:'var(--dD)',E:'var(--dE)'};
+const DIFF_LABEL = {A:'簡単',B:'やや簡単',C:'普通',D:'やや難',E:'難しい'};
+
+let DB = null;
+let currentSubject = null;
+
+function isLoggedIn() { return sessionStorage.getItem('fh882_auth') === '1'; }
+function doLogin(pw) {
+  if (pw === PASSWORD) {
+    sessionStorage.setItem('fh882_auth', '1');
+    $('login-error').classList.remove('show');
+    showApp();
+  } else {
+    $('login-error').classList.add('show');
+    $('pw-input').value = '';
+    $('pw-input').focus();
+  }
+}
+function doLogout() {
+  sessionStorage.removeItem('fh882_auth');
+  $('app-shell').classList.remove('active');
+  $('login-screen').classList.add('active');
+}
+
+async function loadData() {
+  const [questions, terms, numbers, subtopics, stats] = await Promise.all([
+    fetch('data/questions.json').then(r => r.json()),
+    fetch('data/terms.json').then(r => r.json()),
+    fetch('data/numbers.json').then(r => r.json()),
+    fetch('data/subtopics.json').then(r => r.json()),
+    fetch('data/stats.json').then(r => r.json())
+  ]);
+  DB = { questions, terms, numbers, subtopics, stats };
+}
+
+function examLabel(exam) {
+  const [y, m] = exam.split('_');
+  return `${y}年${m}月`;
+}
+
+function buildYearOptions(selectEl, onChange) {
+  const years = [...new Set(DB.questions.map(q => q.year))].sort((a,b) => b - a);
+  selectEl.innerHTML = '<option value="all">全期間（2013-2026）</option>' +
+    years.map(y => `<option value="${y}">${y}年のみ</option>`).join('');
+  selectEl.onchange = onChange;
+}
+
+function filteredQuestions(subjectId, yearVal) {
+  return DB.questions.filter(q =>
+    (!subjectId || q.subject === subjectId) &&
+    (yearVal === 'all' || String(q.year) === String(yearVal))
+  );
+}
+
+// ---------- Dashboard ----------
+function renderDashboard() {
+  buildYearOptions($('year-filter-dash'), () => renderDashboard());
+  const yearVal = $('year-filter-dash').value || 'all';
+  const qs = filteredQuestions(null, yearVal);
+  const total = qs.length;
+  const examSet = new Set(qs.map(q => q.exam));
+  const calcCount = qs.filter(q => q.calc).length;
+
+  $('d-total').textContent = total;
+  $('d-exams').textContent = examSet.size;
+  $('d-calc').textContent = total ? Math.round(calcCount / total * 100) + '%' : '-';
+
+  const bySubj = {};
+  DB.stats.subjects.forEach(s => bySubj[s.id] = 0);
+  qs.forEach(q => bySubj[q.subject] = (bySubj[q.subject]||0) + 1);
+  const maxCount = Math.max(1, ...Object.values(bySubj));
+  $('d-subject-bars').innerHTML = DB.stats.subjects.map(s => `
+    <div class="bar-row">
+      <div class="bar-label"><span>${s.name}</span><span class="bar-count">${bySubj[s.id]}問 (${total?Math.round(bySubj[s.id]/total*100):0}%)</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${bySubj[s.id]/maxCount*100}%"></div></div>
+    </div>`).join('');
+
+  const diffCount = {A:0,B:0,C:0,D:0,E:0};
+  qs.forEach(q => { if (q.difficulty) diffCount[q.difficulty]++; });
+  $('d-difficulty').innerHTML = renderDiffBar(diffCount);
+
+  const termAgg = {};
+  DB.terms.forEach(t => {
+    const c = t.exams.filter(e => yearVal === 'all' || e.split('_')[0] === String(yearVal)).length;
+    if (c > 0) termAgg[t.term] = (termAgg[t.term]||0) + c;
+  });
+  const topTerms = Object.entries(termAgg).sort((a,b) => b[1]-a[1]).slice(0,10);
+  $('d-top-terms').innerHTML = topTerms.map(([t,c]) => `<span class="chip" style="cursor:default">${t} <b>${c}</b></span>`).join('') || '<span style="color:var(--text-light);font-size:12px">データ準備中</span>';
+
+  $('d-subject-grid').innerHTML = DB.stats.subjects.map(s => `
+    <div class="subject-card" data-subject="${s.id}" onclick="goSubject('${s.id}')">
+      <div class="sc-name">${s.name}</div>
+      <div class="sc-share">${total?Math.round(bySubj[s.id]/total*100):0}%</div>
+      <div class="sc-count">${bySubj[s.id]}問</div>
+    </div>`).join('');
+}
+
+function renderDiffBar(diffCount) {
+  const total = Object.values(diffCount).reduce((a,b)=>a+b,0) || 1;
+  const bar = DIFF_ORDER.map(k => `<div class="diff-seg" style="width:${diffCount[k]/total*100}%;background:${DIFF_COLOR[k]}">${diffCount[k]>0?diffCount[k]:''}</div>`).join('');
+  const legend = DIFF_ORDER.map(k => `<span><span class="diff-dot" style="background:${DIFF_COLOR[k]}"></span>${k}:${DIFF_LABEL[k]}</span>`).join('');
+  return `<div class="diff-bar">${bar}</div><div class="diff-legend">${legend}</div>`;
+}
+
+// ---------- Subject view ----------
+function goSubject(id) {
+  currentSubject = id;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="subject"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  $('view-subject').classList.add('active');
+  renderSubjectChips();
+  renderSubject();
+}
+
+function renderSubjectChips() {
+  $('subject-chips').innerHTML = DB.stats.subjects.map(s =>
+    `<button class="chip ${s.id===currentSubject?'active':''}" onclick="goSubject('${s.id}')">${s.name.split('（')[0]}</button>`
+  ).join('');
+}
+
+function renderSubject() {
+  if (!currentSubject) currentSubject = DB.stats.subjects[0].id;
+  buildYearOptions($('year-filter-subj'), () => renderSubject());
+  const yearVal = $('year-filter-subj').value || 'all';
+  const qs = filteredQuestions(currentSubject, yearVal).sort((a,b) => (b.exam).localeCompare(a.exam) || a.num-b.num);
+
+  // priority
+  const prio = (DB.stats.priority||[]).filter(p => p.subject === currentSubject).sort((a,b) => b.score - a.score);
+  $('s-priority').innerHTML = prio.map(p => {
+    const cls = p.score >= 0.66 ? 'priority-high' : p.score >= 0.33 ? 'priority-mid' : 'priority-low';
+    const label = p.score >= 0.66 ? '要警戒' : p.score >= 0.33 ? '中' : '低';
+    return `<div class="priority-row">
+      <div class="priority-top"><span class="priority-name">${p.name}</span><span class="priority-badge ${cls}">${label}</span></div>
+      <div class="priority-meta">出題${p.freq}回 / 平均難易度${p.avgDifficulty!=null?p.avgDifficulty.toFixed(1):'-'} / 最終出題:${p.lastSeenExam?examLabel(p.lastSeenExam):'-'}</div>
+    </div>`;
+  }).join('') || '<div class="search-empty">データ準備中</div>';
+
+  // terms
+  const terms = (DB.terms||[]).filter(t => t.subject === currentSubject).sort((a,b) => b.count - a.count).slice(0, 30);
+  $('s-terms').innerHTML = terms.map((t, i) => `
+    <div>
+      <div class="term-row" onclick="toggleTerm(${i})">
+        <span class="term-name">${t.term}</span>
+        <span class="term-count">${t.count}回</span>
+      </div>
+      <div class="term-detail" id="term-detail-${i}">
+        ${t.note ? t.note + '<br>' : ''}
+        <div class="term-exams">${t.exams.slice(0,20).map(e => `<span class="exam-chip">${examLabel(e.split('-')[0])} 問${e.split('-')[1]}</span>`).join('')}</div>
+      </div>
+    </div>`).join('') || '<div class="search-empty">データ準備中</div>';
+
+  // numbers
+  const nums = (DB.numbers||[]).filter(n => n.subject === currentSubject);
+  $('s-numbers').innerHTML = nums.map(n => `
+    <div class="num-row">
+      <div class="num-value">${n.value}</div>
+      <div class="num-meaning">${n.meaning}</div>
+      <div class="num-meta">登場: ${n.exams.slice(0,6).map(e=>examLabel(e.split('-')[0])).join(' / ')}${n.exams.length>6?' 他':''}</div>
+    </div>`).join('') || '<div class="search-empty">データ準備中</div>';
+
+  // heatmap
+  renderHeatmap(yearVal);
+
+  // question list
+  $('s-questions').innerHTML = qs.map(q => `
+    <div class="q-row">
+      <div class="q-row-top">
+        <span class="badge-diff" style="background:${q.difficulty?DIFF_COLOR[q.difficulty]:'#ccc'}">${q.difficulty||'-'}</span>
+        <span class="q-exam">${examLabel(q.exam)} 問${q.num}</span>
+      </div>
+      <div class="q-summary">${q.summary || '(要旨準備中)'}</div>
+    </div>`).join('') || '<div class="search-empty">データ準備中</div>';
+}
+
+function toggleTerm(i) { $('term-detail-'+i).classList.toggle('open'); }
+
+function renderHeatmap(yearVal) {
+  const topics = (DB.subtopics[currentSubject]||[]);
+  const years = [...new Set(DB.questions.map(q=>q.year))].sort();
+  const filteredYears = yearVal==='all' ? years : years.filter(y=>String(y)===String(yearVal));
+  let html = '<tr><th class="topic-name">論点</th>' + filteredYears.map(y=>`<th>${y}</th>`).join('') + '</tr>';
+  topics.forEach(t => {
+    html += `<tr><td class="topic-name" title="${t.name}">${t.name}</td>`;
+    filteredYears.forEach(y => {
+      let c = 0;
+      Object.entries(t.matrix||{}).forEach(([exam, nums]) => { if (exam.startsWith(String(y))) c += nums.length; });
+      const lvl = c===0?0:c===1?1:c===2?2:c<=4?3:4;
+      html += `<td class="hm${lvl}">${c>0?c:''}</td>`;
+    });
+    html += '</tr>';
+  });
+  $('s-heatmap').innerHTML = html;
+}
+
+// ---------- Search ----------
+function renderSearch(query) {
+  if (!query || query.trim().length < 1) {
+    $('search-results').innerHTML = '<div class="search-empty">用語や制度名を入力して検索してください</div>';
+    return;
+  }
+  const q = query.trim();
+  const termHits = (DB.terms||[]).filter(t => t.term.includes(q));
+  const numHits = (DB.numbers||[]).filter(n => n.value.includes(q) || n.meaning.includes(q));
+  const qHits = (DB.questions||[]).filter(qq => qq.summary && qq.summary.includes(q)).slice(0, 40);
+
+  let html = '';
+  if (termHits.length) {
+    html += '<div class="section-h">用語</div><div class="card">' + termHits.map((t,i) => `
+      <div>
+        <div class="term-row" onclick="toggleTerm('s'+${i})">
+          <span class="term-name">${t.term} <span style="color:var(--text-light);font-weight:400">（${subjName(t.subject)}）</span></span>
+          <span class="term-count">${t.count}回</span>
+        </div>
+        <div class="term-detail" id="term-detail-s${i}">
+          ${t.note ? t.note + '<br>' : ''}
+          <div class="term-exams">${t.exams.slice(0,20).map(e => `<span class="exam-chip">${examLabel(e.split('-')[0])} 問${e.split('-')[1]}</span>`).join('')}</div>
+        </div>
+      </div>`).join('') + '</div>';
+  }
+  if (numHits.length) {
+    html += '<div class="section-h">数値・しきい値</div><div class="card">' + numHits.map(n => `
+      <div class="num-row">
+        <div class="num-value">${n.value} <span style="color:var(--text-light);font-size:11px;font-weight:400">（${subjName(n.subject)}）</span></div>
+        <div class="num-meaning">${n.meaning}</div>
+      </div>`).join('') + '</div>';
+  }
+  if (qHits.length) {
+    html += '<div class="section-h">関連する過去の出題</div><div class="card">' + qHits.map(qq => `
+      <div class="q-row">
+        <div class="q-row-top">
+          <span class="badge-diff" style="background:${qq.difficulty?DIFF_COLOR[qq.difficulty]:'#ccc'}">${qq.difficulty||'-'}</span>
+          <span class="q-exam">${examLabel(qq.exam)} 問${qq.num}（${subjName(qq.subject)}）</span>
+        </div>
+        <div class="q-summary">${qq.summary}</div>
+      </div>`).join('') + '</div>';
+  }
+  $('search-results').innerHTML = html || '<div class="search-empty">該当する結果がありません</div>';
+}
+function subjName(id) { const s = DB.stats.subjects.find(x=>x.id===id); return s ? s.name.split('（')[0] : id; }
+
+// ---------- App shell ----------
+function showApp() {
+  $('login-screen').classList.remove('active');
+  $('app-shell').classList.add('active');
+  renderDashboard();
+}
+
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const tab = btn.dataset.tab;
+      $('view-' + tab).classList.add('active');
+      if (tab === 'subject' && !currentSubject) goSubject(DB.stats.subjects[0].id);
+    });
+  });
+}
+
+(async function init() {
+  await loadData();
+  initTabs();
+  $('login-btn').addEventListener('click', () => doLogin($('pw-input').value));
+  $('pw-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('login-btn').click(); });
+  $('logout-btn').addEventListener('click', doLogout);
+  $('search-input').addEventListener('input', e => renderSearch(e.target.value));
+
+  $('loading').style.display = 'none';
+  if (isLoggedIn()) { showApp(); } else { $('login-screen').classList.add('active'); }
+})();
+</script>
+</body>
+</html>
