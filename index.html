@@ -274,6 +274,11 @@ function examLabel(exam) {
   return `${y}年${m}月`;
 }
 
+function examKey(exam) {
+  const [y, m] = exam.split('_').map(Number);
+  return y * 100 + m;
+}
+
 function buildYearOptions(selectEl, onChange) {
   const years = [...new Set(DB.questions.map(q => q.year))].sort((a,b) => b - a);
   const prevValue = selectEl.value || 'all';
@@ -362,9 +367,19 @@ function renderSubject() {
   buildYearOptions($('year-filter-subj'), () => renderSubject());
   const yearVal = $('year-filter-subj').value || 'all';
   const qs = filteredQuestions(currentSubject, yearVal).sort((a,b) => (b.exam).localeCompare(a.exam) || a.num-b.num);
+  const yearMatches = examStr => yearVal === 'all' || examStr.split('_')[0] === String(yearVal);
+  const emptyMsg = yearVal === 'all' ? 'データ準備中' : 'この期間の出題はありません';
 
   // priority
-  const prio = (DB.stats.priority||[]).filter(p => p.subject === currentSubject).sort((a,b) => b.score - a.score);
+  const prioAll = (DB.stats.priority||[]).filter(p => p.subject === currentSubject);
+  const prio = (yearVal === 'all' ? prioAll : prioAll.map(p => {
+    const qs2 = DB.questions.filter(q => q.subject === currentSubject && (q.topics||[]).includes(p.topic) && String(q.year) === String(yearVal));
+    if (!qs2.length) return null;
+    const diffs = qs2.filter(q => q.difficulty).map(q => DIFF_ORDER.indexOf(q.difficulty) + 1);
+    const avgDifficulty = diffs.length ? diffs.reduce((a,b) => a+b, 0) / diffs.length : null;
+    const lastSeenExam = qs2.map(q => q.exam).sort((a,b) => examKey(b) - examKey(a))[0];
+    return {...p, freq: qs2.length, avgDifficulty, lastSeenExam};
+  }).filter(Boolean)).sort((a,b) => b.score - a.score);
   $('s-priority').innerHTML = prio.map(p => {
     const cls = p.score >= 0.66 ? 'priority-high' : p.score >= 0.33 ? 'priority-mid' : 'priority-low';
     const label = p.score >= 0.66 ? '要警戒' : p.score >= 0.33 ? '中' : '低';
@@ -372,30 +387,38 @@ function renderSubject() {
       <div class="priority-top"><span class="priority-name">${p.name}</span><span class="priority-badge ${cls}">${label}</span></div>
       <div class="priority-meta">出題${p.freq}回 / 平均難易度${p.avgDifficulty!=null?p.avgDifficulty.toFixed(1):'-'} / 最終出題:${p.lastSeenExam?examLabel(p.lastSeenExam):'-'}</div>
     </div>`;
-  }).join('') || '<div class="search-empty">データ準備中</div>';
+  }).join('') || `<div class="search-empty">${emptyMsg}</div>`;
 
   // terms
-  const terms = (DB.terms||[]).filter(t => t.subject === currentSubject).sort((a,b) => b.count - a.count).slice(0, 30);
+  const termsAll = (DB.terms||[]).filter(t => t.subject === currentSubject);
+  const terms = (yearVal === 'all' ? termsAll.map(t => ({...t, _exams: t.exams, _count: t.count})) : termsAll.map(t => {
+    const exFiltered = t.exams.filter(e => yearMatches(e.split('-')[0]));
+    return {...t, _exams: exFiltered, _count: exFiltered.length};
+  }).filter(t => t._count > 0)).sort((a,b) => b._count - a._count).slice(0, 30);
   $('s-terms').innerHTML = terms.map((t, i) => `
     <div>
       <div class="term-row" onclick="toggleTerm(${i})">
         <span class="term-name">${t.term}</span>
-        <span class="term-count">${t.count}回</span>
+        <span class="term-count">${t._count}回</span>
       </div>
       <div class="term-detail" id="term-detail-${i}">
         ${t.note ? t.note + '<br>' : ''}
-        <div class="term-exams">${t.exams.slice(0,20).map(e => `<span class="exam-chip">${examLabel(e.split('-')[0])} 問${e.split('-')[1]}</span>`).join('')}</div>
+        <div class="term-exams">${t._exams.slice(0,20).map(e => `<span class="exam-chip">${examLabel(e.split('-')[0])} 問${e.split('-')[1]}</span>`).join('')}</div>
       </div>
-    </div>`).join('') || '<div class="search-empty">データ準備中</div>';
+    </div>`).join('') || `<div class="search-empty">${emptyMsg}</div>`;
 
   // numbers
-  const nums = (DB.numbers||[]).filter(n => n.subject === currentSubject);
+  const numsAll = (DB.numbers||[]).filter(n => n.subject === currentSubject);
+  const nums = (yearVal === 'all' ? numsAll.map(n => ({...n, _exams: n.exams})) : numsAll.map(n => {
+    const exFiltered = n.exams.filter(e => yearMatches(e.split('-')[0]));
+    return {...n, _exams: exFiltered};
+  }).filter(n => n._exams.length > 0));
   $('s-numbers').innerHTML = nums.map(n => `
     <div class="num-row">
       <div class="num-value">${n.value}</div>
       <div class="num-meaning">${n.meaning}</div>
-      <div class="num-meta">登場: ${n.exams.slice(0,6).map(e=>examLabel(e.split('-')[0])).join(' / ')}${n.exams.length>6?' 他':''}</div>
-    </div>`).join('') || '<div class="search-empty">データ準備中</div>';
+      <div class="num-meta">登場: ${n._exams.slice(0,6).map(e=>examLabel(e.split('-')[0])).join(' / ')}${n._exams.length>6?' 他':''}</div>
+    </div>`).join('') || `<div class="search-empty">${emptyMsg}</div>`;
 
   // heatmap
   renderHeatmap(yearVal);
