@@ -394,10 +394,14 @@ let logImportMode = 'merge';
 
 let termsMapBuilt = false;
 let tmTermLayout = [];
+let tmEdges = [];
+let tmEdgeGeom = [];
+let tmParticles = [];
 let tmHexCenters = {};
 let tmClusterFit = {};
 let camera = { x: 0, y: 0, scale: 1 };
 let tmAnimHandle = null;
+let tmParticleHandle = null;
 let tmPointers = new Map();
 let tmDragStart = null;
 let tmDragMoved = false;
@@ -409,6 +413,7 @@ const TM_RING_R = 300;
 const TM_MIN_SCALE = 0.12, TM_MAX_SCALE = 6;
 const TM_LABEL_SCALE = 1.6;
 const TM_TOP_LABELED = 8;
+const TM_EDGE_TOPK = 4;
 
 function isLoggedIn() { return sessionStorage.getItem('fh882_auth') === '1'; }
 function doLogin(pw) {
@@ -1152,8 +1157,51 @@ function buildHexCenters() {
   });
 }
 
-function tmForceSettle(list, center, iterations = 140) {
-  const REPEL = 900, LINK_STRENGTH = 0.06, DAMPING = 0.82, REPEL_CUTOFF = 70;
+function computeCoOccurEdges(terms) {
+  const qmap = new Map();
+  terms.forEach((t, i) => {
+    (t.exams || []).forEach(e => {
+      if (!qmap.has(e)) qmap.set(e, []);
+      qmap.get(e).push(i);
+    });
+  });
+  const pairWeight = new Map();
+  qmap.forEach(idxs => {
+    const uniq = [...new Set(idxs)];
+    if (uniq.length < 2) return;
+    for (let a = 0; a < uniq.length; a++) {
+      for (let b = a + 1; b < uniq.length; b++) {
+        const i = Math.min(uniq[a], uniq[b]), j = Math.max(uniq[a], uniq[b]);
+        const key = i + '_' + j;
+        pairWeight.set(key, (pairWeight.get(key) || 0) + 1);
+      }
+    }
+  });
+  const byNode = new Map();
+  pairWeight.forEach((w, key) => {
+    const [i, j] = key.split('_').map(Number);
+    if (!byNode.has(i)) byNode.set(i, []);
+    if (!byNode.has(j)) byNode.set(j, []);
+    byNode.get(i).push([w, j]);
+    byNode.get(j).push([w, i]);
+  });
+  const keep = new Map();
+  byNode.forEach((lst, n) => {
+    lst.sort((a, b) => b[0] - a[0]);
+    lst.slice(0, TM_EDGE_TOPK).forEach(([w, other]) => {
+      const key = Math.min(n, other) + '_' + Math.max(n, other);
+      keep.set(key, pairWeight.get(key));
+    });
+  });
+  return [...keep.entries()].map(([key, w]) => {
+    const [i, j] = key.split('_').map(Number);
+    return { i, j, w };
+  });
+}
+
+function tmForceSettle(list, center, edges, iterations = 160) {
+  const REPEL = 900, LINK_STRENGTH = 0.06, DAMPING = 0.8, REPEL_CUTOFF = 70;
+  const EDGE_DIST = 20, EDGE_STRENGTH = 0.035, MAX_SPEED = 5;
   for (const n of list) { n.vx = 0; n.vy = 0; }
   for (let iter = 0; iter < iterations; iter++) {
     for (const n of list) { n.fx = 0; n.fy = 0; }
@@ -1163,7 +1211,7 @@ function tmForceSettle(list, center, iterations = 140) {
         const dx = a.x - b.x, dy = a.y - b.y;
         let distSq = dx * dx + dy * dy;
         if (distSq > REPEL_CUTOFF * REPEL_CUTOFF) continue;
-        if (distSq < 1) distSq = 1;
+        if (distSq < 4) distSq = 4;
         const dist = Math.sqrt(distSq);
         const f = REPEL / distSq;
         const fx = (dx / dist) * f, fy = (dy / dist) * f;
@@ -1171,16 +1219,28 @@ function tmForceSettle(list, center, iterations = 140) {
         b.fx -= fx; b.fy -= fy;
       }
     }
+    for (const e of edges) {
+      const a = list[e.i], b = list[e.j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const diff = clamp(dist - EDGE_DIST, -40, 40);
+      const str = EDGE_STRENGTH * Math.min(2.2, 1 + e.w / 8);
+      const fx = (dx / dist) * diff * str, fy = (dy / dist) * diff * str;
+      a.fx += fx; a.fy += fy;
+      b.fx -= fx; b.fy -= fy;
+    }
     for (const n of list) {
       const dx = n.x - center.x, dy = n.y - center.y;
       const dist = Math.hypot(dx, dy) || 1;
-      const diff = dist - n.idealDist;
+      const diff = clamp(dist - n.idealDist, -40, 40);
       n.fx += -(dx / dist) * diff * LINK_STRENGTH;
       n.fy += -(dy / dist) * diff * LINK_STRENGTH;
     }
     for (const n of list) {
       n.vx = (n.vx + n.fx) * DAMPING;
       n.vy = (n.vy + n.fy) * DAMPING;
+      const speed = Math.hypot(n.vx, n.vy);
+      if (speed > MAX_SPEED) { n.vx = n.vx / speed * MAX_SPEED; n.vy = n.vy / speed * MAX_SPEED; }
       n.x += n.vx;
       n.y += n.vy;
     }
@@ -1189,6 +1249,7 @@ function tmForceSettle(list, center, iterations = 140) {
 
 function layoutAllTerms() {
   tmTermLayout = [];
+  tmEdges = [];
   SUBJ_ORDER.forEach(k => {
     const center = tmHexCenters[k];
     const terms = (DB.terms || []).filter(t => t.subject === k).sort((a, b) => b.count - a.count);
@@ -1205,12 +1266,15 @@ function layoutAllTerms() {
         x: center.x + initR * Math.cos(angle),
         y: center.y + initR * Math.sin(angle),
         idealDist,
-        nodeR: 3 + norm * 8,
+        nodeR: 3 + norm * 11,
         labeled: i < TM_TOP_LABELED
       };
     });
-    tmForceSettle(list, center);
+    const localEdges = computeCoOccurEdges(terms);
+    tmForceSettle(list, center, localEdges);
+    const offset = tmTermLayout.length;
     list.forEach(t => { t.idx = tmTermLayout.length; tmTermLayout.push(t); });
+    localEdges.forEach(e => tmEdges.push({ a: offset + e.i, b: offset + e.j, w: e.w, subject: k }));
   });
 }
 
@@ -1226,6 +1290,15 @@ function tmComputeFits() {
   });
 }
 
+function tmEdgeCurve(a, b) {
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const curve = Math.min(dist * 0.18, 26);
+  const nx = -dy / dist, ny = dx / dist;
+  return { ax: a.x, ay: a.y, bx: b.x, by: b.y, cx: mx + nx * curve, cy: my + ny * curve };
+}
+
 function renderTermsSvg() {
   const ringHtml = SUBJ_ORDER.map((k, i) => {
     const a = tmHexCenters[k], b = tmHexCenters[SUBJ_ORDER[(i + 1) % SUBJ_ORDER.length]];
@@ -1234,7 +1307,29 @@ function renderTermsSvg() {
 
   const spokeHtml = tmTermLayout.map(t => {
     const c = tmHexCenters[t.subject];
-    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.5;opacity:.16"/>`;
+    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.4;opacity:.08"/>`;
+  }).join('');
+
+  const maxW = tmEdges.reduce((m, e) => Math.max(m, e.w), 1);
+  tmEdgeGeom = tmEdges.map(e => {
+    const a = tmTermLayout[e.a], b = tmTermLayout[e.b];
+    return { ...tmEdgeCurve(a, b), subject: e.subject, w: e.w };
+  });
+  const edgeHtml = tmEdgeGeom.map((g, i) => {
+    const norm = g.w / maxW;
+    const width = (0.6 + norm * 1.8).toFixed(2);
+    const op = (0.12 + norm * 0.4).toFixed(2);
+    return `<path id="tm-edge-${i}" d="M${g.ax.toFixed(1)},${g.ay.toFixed(1)} Q${g.cx.toFixed(1)},${g.cy.toFixed(1)} ${g.bx.toFixed(1)},${g.by.toFixed(1)}" style="fill:none;stroke:${TM_GLOW_COLOR[g.subject]};stroke-width:${width};opacity:${op}"/>`;
+  }).join('');
+
+  tmParticles = tmEdgeGeom
+    .map((g, i) => ({ i, w: g.w }))
+    .sort((a, b) => b.w - a.w)
+    .slice(0, 90)
+    .map(p => ({ edge: p.i, t: Math.random(), speed: 0.0016 + Math.random() * 0.0018 }));
+  const particleHtml = tmParticles.map((p, i) => {
+    const g = tmEdgeGeom[p.edge];
+    return `<circle id="tm-particle-${i}" cx="${g.ax.toFixed(1)}" cy="${g.ay.toFixed(1)}" r="1.4" style="fill:#fff;opacity:.85"/>`;
   }).join('');
 
   const hubHtml = SUBJ_ORDER.map(k => {
@@ -1263,7 +1358,7 @@ function renderTermsSvg() {
     </g>`;
   }).join('');
 
-  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${hubHtml}${nodeHtml}</g>`;
+  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${edgeHtml}${hubHtml}${nodeHtml}${particleHtml}</g>`;
 }
 
 function renderTermsLegend() {
@@ -1347,10 +1442,21 @@ function tmSelectTerm(idx) {
     return `<span class="exam-chip">${examLabel(exam)} 問${num}</span>`;
   }).join('');
   const more = (t.exams || []).length > 20 ? `<div style="font-size:11px;color:var(--text-light);margin-top:4px">他${t.exams.length - 20}件</div>` : '';
+  const related = tmEdges
+    .filter(e => e.a === idx || e.b === idx)
+    .sort((a, b) => b.w - a.w)
+    .slice(0, 8)
+    .map(e => {
+      const otherIdx = e.a === idx ? e.b : e.a;
+      const other = tmTermLayout[otherIdx];
+      return `<span class="exam-chip" style="cursor:pointer" onclick="tmSelectTerm(${otherIdx})">${esc(other.term)} <span style="color:var(--text-light)">×${e.w}</span></span>`;
+    }).join('');
   $('tm-detail').innerHTML = `
     <div class="card-title">${esc(t.term)} <span class="estimate-tag">OCRベース概算</span></div>
     <div class="priority-meta" style="margin-bottom:8px">${esc(subjName(t.subject))} ・ 出現${t.count}回</div>
     ${t.note ? `<div style="font-size:12.5px;color:var(--text);margin-bottom:8px">${esc(t.note)}</div>` : ''}
+    ${related ? `<div class="section-h" style="margin:8px 0 4px">よく一緒に出題される用語</div><div class="term-exams">${related}</div>` : ''}
+    <div class="section-h" style="margin:8px 0 4px">出題箇所</div>
     <div class="term-exams">${exams}</div>${more}
     <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="goSubject('${t.subject}')">この分野を見る</button>
   `;
@@ -1449,8 +1555,31 @@ function tmWirePointerEvents() {
   svg.addEventListener('wheel', tmOnWheel, { passive: false });
 }
 
+function tmStartParticles() {
+  if (tmParticleHandle) return;
+  function step() {
+    for (let i = 0; i < tmParticles.length; i++) {
+      const p = tmParticles[i];
+      p.t += p.speed;
+      if (p.t > 1) p.t -= 1;
+      const g = tmEdgeGeom[p.edge];
+      const omt = 1 - p.t;
+      const x = omt * omt * g.ax + 2 * omt * p.t * g.cx + p.t * p.t * g.bx;
+      const y = omt * omt * g.ay + 2 * omt * p.t * g.cy + p.t * p.t * g.by;
+      const el = document.getElementById('tm-particle-' + i);
+      if (el) { el.setAttribute('cx', x.toFixed(1)); el.setAttribute('cy', y.toFixed(1)); }
+    }
+    tmParticleHandle = requestAnimationFrame(step);
+  }
+  tmParticleHandle = requestAnimationFrame(step);
+}
+
+function tmStopParticles() {
+  if (tmParticleHandle) { cancelAnimationFrame(tmParticleHandle); tmParticleHandle = null; }
+}
+
 function renderTermsView() {
-  if (termsMapBuilt) return;
+  if (termsMapBuilt) { tmStartParticles(); return; }
   termsMapBuilt = true;
   buildHexCenters();
   layoutAllTerms();
@@ -1461,6 +1590,7 @@ function renderTermsView() {
   camera.x = fit.x; camera.y = fit.y; camera.scale = fit.scale;
   tmApplyCamera();
   tmWirePointerEvents();
+  tmStartParticles();
 }
 
 // ---------- Search ----------
@@ -1528,6 +1658,7 @@ function initTabs() {
       if (tab === 'subject' && !currentSubject) goSubject(DB.stats.subjects[0].id);
       else if (tab === 'log') renderLogView();
       else if (tab === 'terms') renderTermsView();
+      if (tab !== 'terms') tmStopParticles();
     });
   });
 }
