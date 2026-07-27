@@ -157,14 +157,15 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
 .cal-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);grid-auto-columns:11px;gap:3px}
 .cal-cell{width:11px;height:11px;border-radius:2px;background:#eef0f2}
 
-.tm-wrap{position:relative;width:100%;height:min(65vh,520px);min-height:340px;background:#f7f8fa;border-radius:var(--radius);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.tm-wrap{position:relative;width:100%;height:min(65vh,520px);min-height:340px;background:radial-gradient(ellipse at 50% 40%,#0a0e1a 0%,#05060a 70%);border-radius:var(--radius);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #tm-svg{width:100%;height:100%;display:block;touch-action:none}
-.tm-hex{fill-opacity:.08;stroke-width:2;stroke-opacity:.55;cursor:pointer}
+.tm-hex{fill-opacity:.05;stroke-width:1.5;stroke-opacity:.75;cursor:pointer}
 .tm-hex-cell{cursor:pointer}
 .tm-node circle{cursor:pointer}
 .tm-node.selected circle:last-child{stroke:#fff;stroke-width:2}
 .tm-lbl-lazy{display:none}
 #tm-svg.zoomed-in .tm-lbl-lazy{display:inline}
+.tm-hint{background:rgba(10,14,26,.85);color:#8092a8;border:1px solid rgba(124,232,255,.2)}
 .tm-controls{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
 .tm-ctrl-btn{width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:var(--shadow);border:none;font-size:18px;font-weight:700;color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
 .tm-hint{position:absolute;left:10px;top:10px;font-size:10.5px;color:var(--text-light);background:rgba(255,255,255,.85);padding:4px 8px;border-radius:8px;pointer-events:none}
@@ -348,7 +349,7 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
         <div class="chip-row" id="tm-legend" style="flex-wrap:wrap;overflow:visible"></div>
       </div>
       <div class="tm-wrap">
-        <svg id="tm-svg" viewBox="0 0 400 440"></svg>
+        <svg id="tm-svg" viewBox="0 0 520 440"></svg>
         <div class="tm-hint">ドラッグ・ピンチで探索／タップで詳細</div>
         <div class="tm-controls">
           <button class="tm-ctrl-btn" id="tm-zoom-in" type="button">+</button>
@@ -372,6 +373,7 @@ const DIFF_ORDER = ['A','B','C','D','E'];
 const DIFF_COLOR = {A:'var(--dA)',B:'var(--dB)',C:'var(--dC)',D:'var(--dD)',E:'var(--dE)'};
 const DIFF_LABEL = {A:'簡単',B:'やや簡単',C:'普通',D:'やや難',E:'難しい'};
 const SUBJ_COLOR = {L:'var(--subj-L)',R:'var(--subj-R)',F:'var(--subj-F)',T:'var(--subj-T)',E:'var(--subj-E)',S:'var(--subj-S)'};
+const TM_GLOW_COLOR = {L:'#4ea8ff',R:'#2dd4bf',F:'#c084fc',T:'#ffa94d',E:'#4ade80',S:'#ff6b7c'};
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 const LOG_KEY = 'fh882_studylog';
@@ -402,7 +404,7 @@ let tmDragMoved = false;
 let tmPinchStartDist = null;
 let tmPinchStartScale = null;
 let tmPinchAnchor = null;
-const TM_W = 400, TM_H = 440;
+const TM_W = 520, TM_H = 440;
 const TM_RING_R = 115, TM_HEX_R = 58;
 const TM_MIN_SCALE = 0.6, TM_MAX_SCALE = 5;
 const TM_LABEL_SCALE = 1.8;
@@ -1147,7 +1149,7 @@ function buildHexCenters() {
   const cx = TM_W / 2, cy = TM_H / 2;
   SUBJ_ORDER.forEach((k, i) => {
     const a = Math.PI / 180 * (60 * i - 90);
-    tmHexCenters[k] = { x: cx + TM_RING_R * Math.cos(a), y: cy + TM_RING_R * Math.sin(a) };
+    tmHexCenters[k] = { x: cx + TM_RING_R * Math.cos(a), y: cy + TM_RING_R * Math.sin(a), angle: a };
   });
 }
 
@@ -1187,24 +1189,42 @@ function layoutAllTerms() {
 }
 
 function renderTermsSvg() {
+  const ringHtml = SUBJ_ORDER.map((k, i) => {
+    const a = tmHexCenters[k], b = tmHexCenters[SUBJ_ORDER[(i + 1) % SUBJ_ORDER.length]];
+    return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" style="stroke:rgba(124,232,255,.3);stroke-width:1.2"/>`;
+  }).join('');
+
+  const spokeHtml = tmTermLayout.map(t => {
+    const c = tmHexCenters[t.subject];
+    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.6;opacity:.14"/>`;
+  }).join('');
+
   const hexHtml = SUBJ_ORDER.map(k => {
     const c = tmHexCenters[k];
+    const dx = Math.cos(c.angle), dy = Math.sin(c.angle);
+    const anchor = dx > 0.3 ? 'start' : dx < -0.3 ? 'end' : 'middle';
+    const baseline = dy < -0.3 ? 'auto' : dy > 0.3 ? 'hanging' : 'middle';
+    const lx = c.x + dx * (TM_HEX_R + 14);
+    const ly = c.y + dy * (TM_HEX_R + 14);
     return `<g class="tm-hex-cell" data-subject="${k}">
-      <polygon class="tm-hex" points="${hexPoints(c.x, c.y, TM_HEX_R)}" style="fill:${SUBJ_COLOR[k]};stroke:${SUBJ_COLOR[k]}"/>
-      <text x="${c.x}" y="${c.y - TM_HEX_R - 8}" text-anchor="middle" style="font-size:12px;font-weight:800;fill:${SUBJ_COLOR[k]}">${esc(subjName(k))}</text>
+      <polygon class="tm-hex" points="${hexPoints(c.x, c.y, TM_HEX_R)}" style="fill:${TM_GLOW_COLOR[k]};stroke:${TM_GLOW_COLOR[k]}"/>
+      <circle cx="${c.x}" cy="${c.y}" r="18" style="fill:${TM_GLOW_COLOR[k]};opacity:.16"/>
+      <circle cx="${c.x}" cy="${c.y}" r="9" style="fill:${TM_GLOW_COLOR[k]}"/>
+      <circle cx="${c.x}" cy="${c.y}" r="9" style="fill:none;stroke:#0a0e1a;stroke-width:1.5;opacity:.5"/>
+      <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" style="font-size:12px;font-weight:800;fill:${TM_GLOW_COLOR[k]};dominant-baseline:${baseline}">${esc(subjName(k))}</text>
     </g>`;
   }).join('');
 
   const nodeHtml = tmTermLayout.map(t => {
-    const glow = t.labeled ? `<circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${(t.nodeR * 2).toFixed(1)}" style="fill:${SUBJ_COLOR[t.subject]};opacity:.15"/>` : '';
+    const glow = `<circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${(t.nodeR * (t.labeled ? 2.4 : 1.8)).toFixed(1)}" style="fill:${TM_GLOW_COLOR[t.subject]};opacity:${t.labeled ? .28 : .16}"/>`;
     return `<g class="tm-node${t.labeled ? ' tm-node-glow' : ''}" data-idx="${t.idx}">
       ${glow}
-      <circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${t.nodeR.toFixed(1)}" style="fill:${SUBJ_COLOR[t.subject]}"/>
-      <text class="${t.labeled ? '' : 'tm-lbl-lazy'}" x="${t.x.toFixed(1)}" y="${(t.y + t.nodeR + 8).toFixed(1)}" text-anchor="middle" style="font-size:7px;fill:var(--text);font-weight:600">${esc(t.term)}</text>
+      <circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${t.nodeR.toFixed(1)}" style="fill:${TM_GLOW_COLOR[t.subject]}"/>
+      <text class="${t.labeled ? '' : 'tm-lbl-lazy'}" x="${t.x.toFixed(1)}" y="${(t.y + t.nodeR + 8).toFixed(1)}" text-anchor="middle" style="font-size:7px;fill:#d9e6f0;font-weight:600">${esc(t.term)}</text>
     </g>`;
   }).join('');
 
-  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${hexHtml}${nodeHtml}</g>`;
+  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${hexHtml}${nodeHtml}</g>`;
 }
 
 function renderTermsLegend() {
