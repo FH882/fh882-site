@@ -159,7 +159,6 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
 
 .tm-wrap{position:relative;width:100%;height:min(65vh,520px);min-height:340px;background:radial-gradient(ellipse at 50% 40%,#0a0e1a 0%,#05060a 70%);border-radius:var(--radius);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #tm-svg{width:100%;height:100%;display:block;touch-action:none}
-.tm-hex{fill-opacity:.05;stroke-width:1.5;stroke-opacity:.75;cursor:pointer}
 .tm-hex-cell{cursor:pointer}
 .tm-node circle{cursor:pointer}
 .tm-node.selected circle:last-child{stroke:#fff;stroke-width:2}
@@ -396,6 +395,7 @@ let logImportMode = 'merge';
 let termsMapBuilt = false;
 let tmTermLayout = [];
 let tmHexCenters = {};
+let tmClusterFit = {};
 let camera = { x: 0, y: 0, scale: 1 };
 let tmAnimHandle = null;
 let tmPointers = new Map();
@@ -405,10 +405,9 @@ let tmPinchStartDist = null;
 let tmPinchStartScale = null;
 let tmPinchAnchor = null;
 const TM_W = 520, TM_H = 440;
-const TM_RING_R = 115, TM_HEX_R = 58;
-const TM_MIN_SCALE = 0.6, TM_MAX_SCALE = 5;
-const TM_LABEL_SCALE = 1.8;
-const TM_FOCUS_SCALE = 2.4;
+const TM_RING_R = 300;
+const TM_MIN_SCALE = 0.12, TM_MAX_SCALE = 6;
+const TM_LABEL_SCALE = 1.6;
 const TM_TOP_LABELED = 8;
 
 function isLoggedIn() { return sessionStorage.getItem('fh882_auth') === '1'; }
@@ -1153,13 +1152,39 @@ function buildHexCenters() {
   });
 }
 
-function hexPoints(cx, cy, r) {
-  const pts = [];
-  for (let i = 0; i < 6; i++) {
-    const a = Math.PI / 180 * (60 * i);
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+function tmForceSettle(list, center, iterations = 140) {
+  const REPEL = 900, LINK_STRENGTH = 0.06, DAMPING = 0.82, REPEL_CUTOFF = 70;
+  for (const n of list) { n.vx = 0; n.vy = 0; }
+  for (let iter = 0; iter < iterations; iter++) {
+    for (const n of list) { n.fx = 0; n.fy = 0; }
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        let distSq = dx * dx + dy * dy;
+        if (distSq > REPEL_CUTOFF * REPEL_CUTOFF) continue;
+        if (distSq < 1) distSq = 1;
+        const dist = Math.sqrt(distSq);
+        const f = REPEL / distSq;
+        const fx = (dx / dist) * f, fy = (dy / dist) * f;
+        a.fx += fx; a.fy += fy;
+        b.fx -= fx; b.fy -= fy;
+      }
+    }
+    for (const n of list) {
+      const dx = n.x - center.x, dy = n.y - center.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const diff = dist - n.idealDist;
+      n.fx += -(dx / dist) * diff * LINK_STRENGTH;
+      n.fy += -(dy / dist) * diff * LINK_STRENGTH;
+    }
+    for (const n of list) {
+      n.vx = (n.vx + n.fx) * DAMPING;
+      n.vy = (n.vy + n.fy) * DAMPING;
+      n.x += n.vx;
+      n.y += n.vy;
+    }
   }
-  return pts.join(' ');
 }
 
 function layoutAllTerms() {
@@ -1170,47 +1195,61 @@ function layoutAllTerms() {
     if (!terms.length) return;
     const counts = terms.map(t => t.count);
     const cMin = Math.min(...counts), cMax = Math.max(...counts);
-    const maxCap = TM_HEX_R * 0.8;
-    terms.forEach((t, i) => {
+    const list = terms.map((t, i) => {
       const angle = i * 137.508 * Math.PI / 180;
-      const spiralR = 7 * Math.sqrt(i + 1);
-      const r = Math.min(spiralR, maxCap);
       const norm = cMax > cMin ? Math.sqrt((t.count - cMin) / (cMax - cMin)) : 0.5;
-      tmTermLayout.push({
-        idx: tmTermLayout.length,
-        term: t.term, count: t.count, subject: k, exams: t.exams || [], note: t.note || '',
-        x: center.x + r * Math.cos(angle),
-        y: center.y + r * Math.sin(angle),
+      const idealDist = 15 + (1 - norm) * 65;
+      const initR = 8 * Math.sqrt(i + 1);
+      return {
+        idx: 0, term: t.term, count: t.count, subject: k, exams: t.exams || [], note: t.note || '',
+        x: center.x + initR * Math.cos(angle),
+        y: center.y + initR * Math.sin(angle),
+        idealDist,
         nodeR: 3 + norm * 8,
         labeled: i < TM_TOP_LABELED
-      });
+      };
     });
+    tmForceSettle(list, center);
+    list.forEach(t => { t.idx = tmTermLayout.length; tmTermLayout.push(t); });
+  });
+}
+
+function tmComputeFits() {
+  tmClusterFit = {};
+  SUBJ_ORDER.forEach(k => {
+    const c = tmHexCenters[k];
+    let maxR = 30;
+    tmTermLayout.filter(t => t.subject === k).forEach(t => {
+      maxR = Math.max(maxR, Math.hypot(t.x - c.x, t.y - c.y) + t.nodeR);
+    });
+    tmClusterFit[k] = { r: maxR };
   });
 }
 
 function renderTermsSvg() {
   const ringHtml = SUBJ_ORDER.map((k, i) => {
     const a = tmHexCenters[k], b = tmHexCenters[SUBJ_ORDER[(i + 1) % SUBJ_ORDER.length]];
-    return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" style="stroke:rgba(124,232,255,.3);stroke-width:1.2"/>`;
+    return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" style="stroke:rgba(124,232,255,.25);stroke-width:1"/>`;
   }).join('');
 
   const spokeHtml = tmTermLayout.map(t => {
     const c = tmHexCenters[t.subject];
-    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.6;opacity:.14"/>`;
+    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.5;opacity:.16"/>`;
   }).join('');
 
-  const hexHtml = SUBJ_ORDER.map(k => {
+  const hubHtml = SUBJ_ORDER.map(k => {
     const c = tmHexCenters[k];
+    const fit = tmClusterFit[k] || { r: 60 };
     const dx = Math.cos(c.angle), dy = Math.sin(c.angle);
     const anchor = dx > 0.3 ? 'start' : dx < -0.3 ? 'end' : 'middle';
     const baseline = dy < -0.3 ? 'auto' : dy > 0.3 ? 'hanging' : 'middle';
-    const lx = c.x + dx * (TM_HEX_R + 14);
-    const ly = c.y + dy * (TM_HEX_R + 14);
+    const lx = c.x + dx * (fit.r + 16);
+    const ly = c.y + dy * (fit.r + 16);
     return `<g class="tm-hex-cell" data-subject="${k}">
-      <polygon class="tm-hex" points="${hexPoints(c.x, c.y, TM_HEX_R)}" style="fill:${TM_GLOW_COLOR[k]};stroke:${TM_GLOW_COLOR[k]}"/>
-      <circle cx="${c.x}" cy="${c.y}" r="18" style="fill:${TM_GLOW_COLOR[k]};opacity:.16"/>
-      <circle cx="${c.x}" cy="${c.y}" r="9" style="fill:${TM_GLOW_COLOR[k]}"/>
-      <circle cx="${c.x}" cy="${c.y}" r="9" style="fill:none;stroke:#0a0e1a;stroke-width:1.5;opacity:.5"/>
+      <circle cx="${c.x}" cy="${c.y}" r="${fit.r.toFixed(1)}" style="fill:transparent;pointer-events:all"/>
+      <circle cx="${c.x}" cy="${c.y}" r="16" style="fill:${TM_GLOW_COLOR[k]};opacity:.18"/>
+      <circle cx="${c.x}" cy="${c.y}" r="7" style="fill:${TM_GLOW_COLOR[k]}"/>
+      <circle cx="${c.x}" cy="${c.y}" r="7" style="fill:none;stroke:#0a0e1a;stroke-width:1.3;opacity:.5"/>
       <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" style="font-size:12px;font-weight:800;fill:${TM_GLOW_COLOR[k]};dominant-baseline:${baseline}">${esc(subjName(k))}</text>
     </g>`;
   }).join('');
@@ -1224,7 +1263,7 @@ function renderTermsSvg() {
     </g>`;
   }).join('');
 
-  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${hexHtml}${nodeHtml}</g>`;
+  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${hubHtml}${nodeHtml}</g>`;
 }
 
 function renderTermsLegend() {
@@ -1257,13 +1296,37 @@ function tmAnimateCamera(tx, ty, ts, duration = 300) {
   tmAnimHandle = requestAnimationFrame(step);
 }
 
-function tmFocusHex(subjectId) {
-  const center = tmHexCenters[subjectId];
-  if (!center) return;
-  tmAnimateCamera(TM_W / 2 - TM_FOCUS_SCALE * center.x, TM_H / 2 - TM_FOCUS_SCALE * center.y, TM_FOCUS_SCALE, 350);
+function tmFitCamera() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  tmTermLayout.forEach(t => {
+    minX = Math.min(minX, t.x - t.nodeR); maxX = Math.max(maxX, t.x + t.nodeR);
+    minY = Math.min(minY, t.y - t.nodeR); maxY = Math.max(maxY, t.y + t.nodeR);
+  });
+  SUBJ_ORDER.forEach(k => {
+    const c = tmHexCenters[k];
+    minX = Math.min(minX, c.x - 30); maxX = Math.max(maxX, c.x + 30);
+    minY = Math.min(minY, c.y - 30); maxY = Math.max(maxY, c.y + 30);
+  });
+  const pad = 30;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const bw = maxX - minX, bh = maxY - minY;
+  const scale = clamp(Math.min(TM_W / bw, TM_H / bh), TM_MIN_SCALE, TM_MAX_SCALE);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  return { x: TM_W / 2 - scale * cx, y: TM_H / 2 - scale * cy, scale };
 }
 
-function tmResetView() { tmAnimateCamera(0, 0, 1, 300); }
+function tmFocusHex(subjectId) {
+  const center = tmHexCenters[subjectId];
+  const fit = tmClusterFit[subjectId];
+  if (!center || !fit) return;
+  const scale = clamp(Math.min(TM_W, TM_H) / (fit.r * 2.6), TM_MIN_SCALE, TM_MAX_SCALE);
+  tmAnimateCamera(TM_W / 2 - scale * center.x, TM_H / 2 - scale * center.y, scale, 350);
+}
+
+function tmResetView() {
+  const fit = tmFitCamera();
+  tmAnimateCamera(fit.x, fit.y, fit.scale, 300);
+}
 
 function tmZoomBy(factor) {
   const targetScale = clamp(camera.scale * factor, TM_MIN_SCALE, TM_MAX_SCALE);
@@ -1391,8 +1454,11 @@ function renderTermsView() {
   termsMapBuilt = true;
   buildHexCenters();
   layoutAllTerms();
+  tmComputeFits();
   renderTermsSvg();
   renderTermsLegend();
+  const fit = tmFitCamera();
+  camera.x = fit.x; camera.y = fit.y; camera.scale = fit.scale;
   tmApplyCamera();
   tmWirePointerEvents();
 }
