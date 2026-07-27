@@ -133,6 +133,28 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
 .section-h:first-child{margin-top:0}
 
 .footer-note{font-size:11px;color:var(--text-light);text-align:center;padding:14px 0 4px;line-height:1.7}
+
+.log-warn{background:#fdecea;color:var(--error);border-radius:var(--radius);padding:14px;margin-bottom:12px;font-size:13px;line-height:1.6}
+.log-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.log-field label{display:block;font-size:11px;color:var(--text-light);margin-bottom:4px;text-align:center}
+.log-num{width:100%;padding:10px 4px;border:2px solid var(--border);border-radius:8px;font-size:16px;text-align:center;-webkit-appearance:none;-moz-appearance:textfield}
+.log-num:focus{border-color:var(--primary);outline:none}
+.log-num::-webkit-outer-spin-button,.log-num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.log-total{text-align:center;font-size:18px;font-weight:800;padding:10px;border-radius:10px;background:#f0f2f5;color:var(--text);margin-bottom:10px}
+.log-total.pass{background:#eef6f0;color:var(--success)}
+.log-total.fail{background:#fdecea;color:var(--error)}
+.log-msg{font-size:12px;text-align:center;margin-bottom:10px;min-height:16px}
+.log-msg.err{color:var(--error)}
+.log-msg.ok{color:var(--success)}
+.log-del{background:none;border:none;color:var(--error);font-size:11px;font-weight:600;cursor:pointer;padding:4px 0;-webkit-tap-highlight-color:transparent}
+.btn-sm{width:auto;padding:9px 14px;font-size:13px;display:inline-block}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn-row .btn-sm{flex:1;min-width:100px}
+.log-textarea{width:100%;min-height:90px;padding:10px;border:2px solid var(--border);border-radius:10px;font-size:11px;font-family:monospace;resize:vertical}
+.cal-wrap{display:flex;gap:4px;align-items:flex-start}
+.cal-wd{display:grid;grid-template-columns:11px;grid-template-rows:repeat(7,11px);gap:3px;font-size:8px;color:var(--text-light);line-height:11px;flex-shrink:0;text-align:right;padding-right:2px}
+.cal-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);grid-auto-columns:11px;gap:3px}
+.cal-cell{width:11px;height:11px;border-radius:2px;background:#eef0f2}
 </style>
 </head>
 <body>
@@ -147,7 +169,7 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
     <div class="login-logo">
       <span class="icon">FH882</span>
       <h1>Reference</h1>
-      <p>Ver.1.0.0</p>
+      <p>Ver.1.1.0</p>
     </div>
     <div class="form-group">
       <label class="form-label" for="pw-input">パスワード</label>
@@ -166,9 +188,10 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
     </div>
   </div>
   <div class="tabbar">
-    <button class="tab-btn active" data-tab="dashboard">ダッシュボード</button>
+    <button class="tab-btn active" data-tab="dashboard">概要</button>
     <button class="tab-btn" data-tab="subject">分野</button>
     <button class="tab-btn" data-tab="search">検索</button>
+    <button class="tab-btn" data-tab="log">学習</button>
   </div>
   <div class="app-content">
 
@@ -226,8 +249,83 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
       <div id="search-results"><div class="search-empty">用語や制度名を入力して検索してください</div></div>
     </div>
 
+    <div class="view" id="view-log">
+      <div id="lg-warn"></div>
+
+      <div class="stat-row">
+        <div class="stat-card"><span class="stat-num" id="lg-count">-</span><span class="stat-label">記録回数</span></div>
+        <div class="stat-card"><span class="stat-num" id="lg-avg">-</span><span class="stat-label">平均点</span></div>
+        <div class="stat-card"><span class="stat-num" id="lg-passrate">-</span><span class="stat-label">合格率</span></div>
+      </div>
+
+      <div class="card" id="lg-add-card">
+        <div class="card-title">記録を追加</div>
+        <select class="year-filter" id="lg-exam"></select>
+        <div class="form-group">
+          <input type="date" class="form-input" id="lg-date">
+        </div>
+        <div class="log-grid" id="lg-fields"></div>
+        <div class="log-total" id="lg-total">合計 - / 60</div>
+        <div class="log-msg" id="lg-msg"></div>
+        <button class="btn btn-primary" id="lg-save">記録を保存</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">得点推移</div>
+        <div class="chip-row" id="lg-range-chips">
+          <button class="chip active" data-range="10">直近10</button>
+          <button class="chip" data-range="30">直近30</button>
+          <button class="chip" data-range="all">全期間</button>
+        </div>
+        <div id="lg-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">分野別平均</div>
+        <div id="lg-subjavg"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">弱点×頻出 優先論点 <span class="estimate-tag">OCRベース概算</span></div>
+        <div id="lg-cross"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">次に解くべき回</div>
+        <div id="lg-reco"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">学習カレンダー</div>
+        <div class="heatmap-wrap" id="lg-cal-wrap"><div class="cal-wrap" id="lg-cal"></div></div>
+        <div class="priority-meta" id="lg-cal-meta" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">記録一覧</div>
+        <div id="lg-history"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">データ管理</div>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" id="lg-export">エクスポート</button>
+          <button class="btn btn-secondary btn-sm" id="lg-import-merge">読み込み（追加）</button>
+          <button class="btn btn-secondary btn-sm" id="lg-import-replace">読み込み（置換）</button>
+        </div>
+        <input type="file" id="lg-import-file" accept="application/json" style="display:none">
+        <div class="log-msg" id="lg-io-msg"></div>
+        <div class="section-h">テキストで移す（スマホ向け）</div>
+        <textarea class="log-textarea" id="lg-text" placeholder="ここにJSONを貼り付け"></textarea>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-secondary btn-sm" id="lg-text-export">この内容をテキスト化</button>
+          <button class="btn btn-secondary btn-sm" id="lg-text-import">テキストから読込</button>
+        </div>
+      </div>
+    </div>
+
   </div>
-  <div class="footer-note">データはOCR抽出に基づく概算を含みます。難易度は原本目視照合済み。</div>
+  <div class="footer-note">データはOCR抽出に基づく概算を含みます。難易度は原本目視照合済み。学習記録はこの端末のブラウザに保存されます。</div>
 </div>
 
 <script>
@@ -237,8 +335,22 @@ const DIFF_ORDER = ['A','B','C','D','E'];
 const DIFF_COLOR = {A:'var(--dA)',B:'var(--dB)',C:'var(--dC)',D:'var(--dD)',E:'var(--dE)'};
 const DIFF_LABEL = {A:'簡単',B:'やや簡単',C:'普通',D:'やや難',E:'難しい'};
 
+const LOG_KEY = 'fh882_studylog';
+const LOG_APP = 'fh882-studylog';
+const LOG_SCHEMA = 1;
+const PASS_MARK = 36;
+const SUBJ_ORDER = ['L','R','F','T','E','S'];
+const SUBJ_SHORT = {L:'ライフ',R:'リスク',F:'金融',T:'タックス',E:'不動産',S:'相続'};
+const LOG_MAX = 2000;
+
 let DB = null;
 let currentSubject = null;
+let LOG = { app: LOG_APP, schema: LOG_SCHEMA, updatedAt: null, attempts: [] };
+let logPersist = true;
+let logWarn = '';
+let logChartRange = 10;
+let logHistoryLimit = 20;
+let logImportMode = 'merge';
 
 function isLoggedIn() { return sessionStorage.getItem('fh882_auth') === '1'; }
 function doLogin(pw) {
@@ -277,6 +389,23 @@ function examLabel(exam) {
 function examKey(exam) {
   const [y, m] = exam.split('_').map(Number);
   return y * 100 + m;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dayDiff(a, b) {
+  return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000);
+}
+function uid() {
+  return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+function attemptTotal(a) {
+  return SUBJ_ORDER.reduce((n,k) => n + (a.scores[k]||0), 0);
 }
 
 function buildYearOptions(selectEl, onChange) {
@@ -454,6 +583,508 @@ function renderHeatmap(yearVal) {
   $('s-heatmap').innerHTML = html;
 }
 
+// ---------- Study log ----------
+
+// ---- Storage ----
+function logLoad() {
+  logWarn = '';
+  let raw;
+  try {
+    raw = localStorage.getItem(LOG_KEY);
+  } catch (e) {
+    logPersist = false;
+    logWarn = 'この端末（プライベートブラウジング等）では学習記録を保存できません。このセッション中のみ有効です。';
+    return;
+  }
+  if (!raw) { LOG = { app: LOG_APP, schema: LOG_SCHEMA, updatedAt: null, attempts: [] }; return; }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    logWarn = '保存されている学習記録データが壊れています。データを破棄して初期化するか、エクスポート機能で内容を確認してください。';
+    return;
+  }
+  if (!data || typeof data !== 'object' || data.app !== LOG_APP) {
+    logWarn = 'この端末の保存領域に、このサイトの学習記録ではないデータが入っています。誤って上書きしないよう読み込みを中止しました。';
+    return;
+  }
+  if (typeof data.schema === 'number' && data.schema > LOG_SCHEMA) {
+    logWarn = '新しいバージョンで保存された学習記録データです。読み込みを中止しました。';
+    return;
+  }
+  const result = sanitizeLog(data);
+  LOG = result.log;
+  if (result.dropped > 0) logWarn = `${result.dropped}件の記録が形式不正のため読み込めませんでした。`;
+}
+
+function sanitizeLog(data) {
+  const examSet = new Set((DB.stats.byYear||[]).map(b => b.exam));
+  const seenIds = new Set();
+  let dropped = 0;
+  const attempts = (Array.isArray(data.attempts) ? data.attempts : []).map(a => {
+    if (!a || typeof a !== 'object') { dropped++; return null; }
+    if (!examSet.has(a.exam)) { dropped++; return null; }
+    if (typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date)) { dropped++; return null; }
+    if (a.date > todayISO() || a.date < '2013-01-01') { dropped++; return null; }
+    const scores = {};
+    SUBJ_ORDER.forEach(k => { scores[k] = Math.max(0, Math.min(10, Math.round(Number((a.scores||{})[k]) || 0))); });
+    let id = typeof a.id === 'string' && a.id ? a.id : uid();
+    while (seenIds.has(id)) id = uid();
+    seenIds.add(id);
+    return {
+      id,
+      exam: a.exam,
+      date: a.date,
+      scores,
+      note: String(a.note || '').slice(0, 100),
+      createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString()
+    };
+  }).filter(Boolean);
+  attempts.sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+  return { log: { app: LOG_APP, schema: LOG_SCHEMA, updatedAt: data.updatedAt || null, attempts: attempts.slice(0, LOG_MAX) }, dropped };
+}
+
+function logSave() {
+  if (!logPersist) return false;
+  LOG.updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(LOG));
+    return true;
+  } catch (e) {
+    logPersist = false;
+    logWarn = '保存領域が不足しているため、これ以降の変更を保存できません。「データ管理」からエクスポートして記録を保全してください。';
+    renderLogWarn();
+    return false;
+  }
+}
+
+function logMerge(incoming) {
+  const existingIds = new Set(LOG.attempts.map(a => a.id));
+  const keyOf = a => a.exam + '|' + a.date + '|' + SUBJ_ORDER.map(k=>a.scores[k]).join(',');
+  const existingKeys = new Set(LOG.attempts.map(keyOf));
+  let added = 0, dup = 0;
+  incoming.forEach(a => {
+    if (existingIds.has(a.id) || existingKeys.has(keyOf(a))) { dup++; return; }
+    LOG.attempts.push(a);
+    existingIds.add(a.id);
+    existingKeys.add(keyOf(a));
+    added++;
+  });
+  LOG.attempts.sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+  LOG.attempts = LOG.attempts.slice(0, LOG_MAX);
+  return { added, dup };
+}
+
+function logIngest(rawText, mode) {
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch (e) {
+    return { ok: false, msg: 'JSONとして読み込めませんでした。内容を確認してください。' };
+  }
+  if (!data || typeof data !== 'object' || data.app !== LOG_APP) {
+    return { ok: false, msg: 'このサイトの学習記録データではないようです。読み込みを中止しました。' };
+  }
+  const { log, dropped } = sanitizeLog(data);
+  if (mode === 'replace') {
+    LOG = log;
+    logSave();
+    return { ok: true, msg: `全置換: ${log.attempts.length}件を読み込みました${dropped ? `（${dropped}件は形式不正のため除外）` : ''}。` };
+  }
+  const { added, dup } = logMerge(log.attempts);
+  logSave();
+  return { ok: true, msg: `追加${added}件 / 重複スキップ${dup}件${dropped ? ` / 不正${dropped}件` : ''}` };
+}
+
+function logExport() {
+  const blob = new Blob([JSON.stringify(LOG, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = url;
+  a.download = `fh882-studylog-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function logDiscardCorrupted() {
+  if (!confirm('保存されている学習記録データを破棄して初期化します。よろしいですか？')) return;
+  try { localStorage.removeItem(LOG_KEY); } catch (e) {}
+  LOG = { app: LOG_APP, schema: LOG_SCHEMA, updatedAt: null, attempts: [] };
+  logWarn = '';
+  logPersist = true;
+  logSave();
+  renderLogView();
+}
+
+// ---- Form ----
+function initLogForm() {
+  $('lg-fields').innerHTML = SUBJ_ORDER.map(k => `
+    <div class="log-field">
+      <label>${SUBJ_SHORT[k]}</label>
+      <input type="number" class="log-num" min="0" max="10" step="1" inputmode="numeric" data-subj="${k}" oninput="updateLogTotal()">
+    </div>`).join('');
+  $('lg-date').value = todayISO();
+  $('lg-date').max = todayISO();
+}
+
+function renderLogExamOptions() {
+  const sel = $('lg-exam');
+  const prevValue = sel.value;
+  const counts = {};
+  LOG.attempts.forEach(a => counts[a.exam] = (counts[a.exam]||0) + 1);
+  const sorted = [...(DB.stats.byYear||[])].sort((a,b) => examKey(b.exam) - examKey(a.exam));
+  sel.innerHTML = sorted.map(b => {
+    const c = counts[b.exam] || 0;
+    const suffix = c > 0 ? `（${c}回）` : '（未受験）';
+    return `<option value="${b.exam}">${examLabel(b.exam)}${suffix}</option>`;
+  }).join('');
+  if (prevValue && [...sel.options].some(o => o.value === prevValue)) sel.value = prevValue;
+}
+
+function updateLogTotal() {
+  const inputs = document.querySelectorAll('#lg-fields .log-num');
+  let total = 0, filled = 0;
+  inputs.forEach(inp => { if (inp.value !== '') { filled++; total += Number(inp.value) || 0; } });
+  const el = $('lg-total');
+  if (filled === 0) {
+    el.textContent = '合計 - / 60';
+    el.className = 'log-total';
+  } else {
+    el.textContent = `合計 ${total} / 60`;
+    el.className = 'log-total ' + (total >= PASS_MARK ? 'pass' : 'fail');
+  }
+}
+
+function saveLogEntry() {
+  const exam = $('lg-exam').value;
+  const date = $('lg-date').value;
+  const msgEl = $('lg-msg');
+  msgEl.className = 'log-msg';
+
+  if (!exam) { msgEl.textContent = '回を選択してください。'; msgEl.className = 'log-msg err'; return; }
+  if (!date) { msgEl.textContent = '日付を入力してください。'; msgEl.className = 'log-msg err'; return; }
+  if (date > todayISO()) { msgEl.textContent = '未来の日付は入力できません。'; msgEl.className = 'log-msg err'; return; }
+  if (date < '2013-01-01') { msgEl.textContent = '日付が古すぎます。'; msgEl.className = 'log-msg err'; return; }
+
+  const inputs = document.querySelectorAll('#lg-fields .log-num');
+  let hasBlank = false, corrected = false;
+  const scores = {};
+  inputs.forEach(inp => {
+    const k = inp.dataset.subj;
+    if (inp.value === '') { hasBlank = true; return; }
+    let v = Math.round(Number(inp.value));
+    if (isNaN(v)) { hasBlank = true; return; }
+    if (v < 0 || v > 10) corrected = true;
+    scores[k] = Math.max(0, Math.min(10, v));
+  });
+  if (hasBlank) { msgEl.textContent = '6分野すべて入力してください。'; msgEl.className = 'log-msg err'; return; }
+
+  const dup = LOG.attempts.some(a => a.exam === exam && a.date === date);
+  if (dup && !confirm('同じ回・同じ日付の記録がすでにあります。追加しますか？')) return;
+
+  const entry = { id: uid(), exam, date, scores, note: '', createdAt: new Date().toISOString() };
+  LOG.attempts.push(entry);
+  LOG.attempts.sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+  LOG.attempts = LOG.attempts.slice(0, LOG_MAX);
+  logSave();
+
+  inputs.forEach(inp => inp.value = '');
+  updateLogTotal();
+  msgEl.textContent = corrected ? '保存しました（点数は0〜10の範囲に補正しました）。' : '保存しました。';
+  msgEl.className = 'log-msg ok';
+  renderLogView();
+}
+
+function deleteLogEntry(id) {
+  if (!confirm('この記録を削除します。よろしいですか？')) return;
+  LOG.attempts = LOG.attempts.filter(a => a.id !== id);
+  logSave();
+  renderLogView();
+}
+
+function setChartRange(range) {
+  logChartRange = range === 'all' ? 'all' : Number(range);
+  document.querySelectorAll('#lg-range-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.range === range));
+  renderLogChart();
+}
+
+function toggleLogHistory() {
+  logHistoryLimit = logHistoryLimit === 20 ? LOG.attempts.length : 20;
+  renderLogHistory();
+}
+
+function selectRecoExam(exam) {
+  $('lg-exam').value = exam;
+  $('lg-add-card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ---- Algorithms ----
+function subjectAverages() {
+  const bySubj = {};
+  SUBJ_ORDER.forEach(k => bySubj[k] = []);
+  const sorted = [...LOG.attempts].sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+  sorted.forEach(a => SUBJ_ORDER.forEach(k => bySubj[k].push(a.scores[k])));
+  const avg = {};
+  SUBJ_ORDER.forEach(k => {
+    const recent = bySubj[k].slice(0, 5);
+    avg[k] = recent.length ? recent.reduce((x,y)=>x+y,0) / recent.length : null;
+  });
+  return avg;
+}
+
+function weaknessMap() {
+  const avg = subjectAverages();
+  const withData = SUBJ_ORDER.filter(k => avg[k] != null);
+  const ranked = [...withData].sort((a,b) => avg[a] - avg[b]); // ascending: weakest first
+  const weak = {};
+  SUBJ_ORDER.forEach(k => {
+    if (avg[k] == null) { weak[k] = 0.5; return; }
+    const abs_s = 1 - avg[k] / 10;
+    const pos = ranked.indexOf(k);
+    const rel_s = withData.length > 1 ? 1 - pos / (withData.length - 1) : 0.5;
+    weak[k] = 0.6 * abs_s + 0.4 * rel_s;
+  });
+  return { weak, avg };
+}
+
+function crossAnalysis() {
+  if (!LOG.attempts.length) return { rows: [], mode: 'empty' };
+  const { weak, avg } = weaknessMap();
+  const priority = DB.stats.priority || [];
+  if (!priority.length) return { rows: [], mode: 'empty' };
+  const scores = priority.map(p => p.score);
+  const pMin = Math.min(...scores), pMax = Math.max(...scores);
+  const withData = SUBJ_ORDER.filter(k => avg[k] != null);
+  const maxAbsWeak = withData.length ? Math.max(...withData.map(k => 1 - avg[k]/10)) : 1;
+  const degenerate = maxAbsWeak < 0.05;
+  const rows = priority.map(p => {
+    const pNorm = (p.score - pMin) / ((pMax - pMin) || 1);
+    const cross = degenerate ? pNorm : Math.sqrt(pNorm * weak[p.subject]);
+    return { ...p, pNorm, cross, avg: avg[p.subject] };
+  }).sort((a,b) => degenerate ? (b.pNorm - a.pNorm) : (b.cross - a.cross || b.pNorm - a.pNorm));
+  return { rows: rows.slice(0, 12), mode: degenerate ? 'degenerate' : 'normal' };
+}
+
+function recommendExams() {
+  const byExam = {};
+  LOG.attempts.forEach(a => { (byExam[a.exam] = byExam[a.exam] || []).push(a); });
+  const sorted = [...(DB.stats.byYear||[])].sort((a,b) => examKey(a.exam) - examKey(b.exam));
+  const n = sorted.length;
+  const today = todayISO();
+  const rows = sorted.map((b, idx) => {
+    const attempts = (byExam[b.exam] || []).sort((x,y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : (x.createdAt < y.createdAt ? 1 : -1)));
+    const cnt = attempts.length;
+    const last = attempts[0];
+    const novelty = 1 / (1 + cnt);
+    const lastTotal = cnt ? attemptTotal(last) : null;
+    const weakness = cnt === 0 ? 0.45 : 1 - lastTotal / 60;
+    const days = cnt === 0 ? null : dayDiff(last.date, today);
+    const staleness = cnt === 0 ? 0.60 : Math.min(days / 90, 1);
+    const recency = n > 1 ? idx / (n - 1) : 1;
+    const reco = 0.40*novelty + 0.25*weakness + 0.20*staleness + 0.15*recency;
+    let reason;
+    if (cnt === 0) {
+      reason = '未受験';
+    } else {
+      const remain = PASS_MARK - lastTotal;
+      const contributions = [
+        { label: `前回${lastTotal}点（合格まで${remain > 0 ? remain + '点' : '達成'}）`, val: 0.25*weakness },
+        { label: `最終受験から${days}日`, val: 0.20*staleness },
+        { label: '直近の出題傾向', val: 0.15*recency }
+      ];
+      contributions.sort((a,b) => b.val - a.val);
+      reason = contributions[0].label;
+    }
+    return { exam: b.exam, cnt, reco, reason };
+  }).sort((a,b) => b.reco - a.reco);
+  return rows.slice(0, 5);
+}
+
+function streaks() {
+  const days = new Set(LOG.attempts.map(a => a.date));
+  const toKey = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  let cursor = todayISO();
+  if (!days.has(cursor)) {
+    const y = new Date(cursor + 'T00:00:00'); y.setDate(y.getDate()-1);
+    const yStr = toKey(y);
+    cursor = days.has(yStr) ? yStr : null;
+  }
+  let current = 0;
+  if (cursor) {
+    while (days.has(cursor)) {
+      current++;
+      const d = new Date(cursor + 'T00:00:00'); d.setDate(d.getDate()-1);
+      cursor = toKey(d);
+    }
+  }
+  const sortedDays = [...days].sort();
+  let longest = 0, run = 0, prev = null;
+  sortedDays.forEach(d => {
+    run = (prev && dayDiff(prev, d) === 1) ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    prev = d;
+  });
+  return { total: days.size, current, longest };
+}
+
+// ---- Render ----
+function renderLogView() {
+  renderLogWarn();
+  renderLogExamOptions();
+  renderLogSummary();
+  renderLogChart();
+  renderLogSubjAvg();
+  renderLogCross();
+  renderLogReco();
+  renderLogCalendar();
+  renderLogHistory();
+}
+
+function renderLogWarn() {
+  $('lg-warn').innerHTML = logWarn ? `<div class="log-warn">${esc(logWarn)}<br><button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="logDiscardCorrupted()">破棄して初期化</button></div>` : '';
+}
+
+function renderLogSummary() {
+  const n = LOG.attempts.length;
+  $('lg-count').textContent = n || '-';
+  if (!n) { $('lg-avg').textContent = '-'; $('lg-passrate').textContent = '-'; return; }
+  const totals = LOG.attempts.map(attemptTotal);
+  const avg = totals.reduce((a,b)=>a+b,0) / n;
+  const passCount = totals.filter(t => t >= PASS_MARK).length;
+  $('lg-avg').textContent = avg.toFixed(1);
+  $('lg-passrate').textContent = Math.round(passCount / n * 100) + '%';
+}
+
+function renderLogChart() {
+  const sorted = [...LOG.attempts].sort((a,b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : (a.createdAt > b.createdAt ? 1 : -1)));
+  const data = logChartRange === 'all' ? sorted : sorted.slice(-logChartRange);
+  const el = $('lg-chart');
+  if (!data.length) { el.innerHTML = '<div class="search-empty">記録を追加すると得点推移グラフが表示されます</div>'; return; }
+
+  const W = 340, H = 180, x0 = 34, x1 = 330, y0 = 12, y1 = 150;
+  const yFor = v => y1 - (v/60) * (y1-y0);
+  const xFor = i => data.length === 1 ? (x0+x1)/2 : x0 + i * (x1-x0) / (data.length-1);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">`;
+  [0,20,40,60].forEach(v => {
+    svg += `<line x1="${x0}" y1="${yFor(v)}" x2="${x1}" y2="${yFor(v)}" style="stroke:#eee;stroke-width:1"/>`;
+    svg += `<text x="${x0-6}" y="${yFor(v)+3}" text-anchor="end" style="font-size:9px;fill:var(--text-light)">${v}</text>`;
+  });
+  svg += `<line x1="${x0}" y1="${yFor(PASS_MARK)}" x2="${x1}" y2="${yFor(PASS_MARK)}" style="stroke:var(--success);stroke-width:1.5" stroke-dasharray="4 3"/>`;
+  svg += `<text x="${x1}" y="${yFor(PASS_MARK)-4}" text-anchor="end" style="font-size:9px;fill:var(--success);font-weight:700">合格${PASS_MARK}</text>`;
+
+  if (data.length > 1) {
+    const pts = data.map((a,i) => `${xFor(i)},${yFor(attemptTotal(a))}`).join(' ');
+    svg += `<polyline points="${pts}" style="fill:none;stroke:var(--primary);stroke-width:2"/>`;
+  }
+  const labelStep = Math.max(1, Math.ceil(data.length/6));
+  data.forEach((a,i) => {
+    const total = attemptTotal(a);
+    const cx = xFor(i), cy = yFor(total);
+    const r = data.length > 20 ? 2.5 : 3.5;
+    const color = total >= PASS_MARK ? 'var(--primary)' : 'var(--error)';
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:${color}"><title>${esc(examLabel(a.exam))} ${a.date} ${total}点</title></circle>`;
+    if (i % labelStep === 0 || i === data.length-1) {
+      const [,m,d] = a.date.split('-');
+      svg += `<text x="${cx}" y="${H-2}" text-anchor="middle" style="font-size:9px;fill:var(--text-light)">${m}/${d}</text>`;
+    }
+  });
+  svg += '</svg>';
+  el.innerHTML = svg;
+}
+
+function renderLogSubjAvg() {
+  const { avg } = weaknessMap();
+  $('lg-subjavg').innerHTML = SUBJ_ORDER.map(k => {
+    const s = DB.stats.subjects.find(x => x.id === k);
+    const v = avg[k];
+    const pct = v == null ? 0 : v/10*100;
+    const weak = v != null && v < 6;
+    return `<div class="bar-row">
+      <div class="bar-label"><span>${s ? s.name.split('（')[0] : k}</span><span class="bar-count">${v==null?'-':v.toFixed(1)} / 10</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;${weak?'background:var(--error)':''}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderLogCross() {
+  const { rows, mode } = crossAnalysis();
+  if (mode === 'empty') {
+    $('lg-cross').innerHTML = '<div class="search-empty">記録を追加すると、苦手分野と頻出論点の交差分析が表示されます</div>';
+    return;
+  }
+  const note = mode === 'degenerate' ? '<div class="search-empty" style="padding:8px 0">苦手分野なし・頻出順で表示</div>' : '';
+  $('lg-cross').innerHTML = note + rows.map(p => {
+    const cls = p.cross >= 0.60 ? 'priority-high' : p.cross >= 0.40 ? 'priority-mid' : 'priority-low';
+    const label = p.cross >= 0.60 ? '要警戒' : p.cross >= 0.40 ? '中' : '低';
+    return `<div class="priority-row" onclick="goSubject('${p.subject}')" style="cursor:pointer">
+      <div class="priority-top"><span class="priority-name">${p.name}</span><span class="priority-badge ${cls}">${label}</span></div>
+      <div class="priority-meta">${subjName(p.subject)} 平均${p.avg!=null?p.avg.toFixed(1):'未記録'}/10 ・ 出題${p.freq}回 ・ 最終${p.lastSeenExam?examLabel(p.lastSeenExam):'-'}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderLogReco() {
+  const rows = recommendExams();
+  $('lg-reco').innerHTML = rows.map((r,i) => {
+    const cls = i === 0 ? 'priority-high' : i <= 2 ? 'priority-mid' : 'priority-low';
+    return `<div class="priority-row" onclick="selectRecoExam('${r.exam}')" style="cursor:pointer">
+      <div class="priority-top"><span class="priority-name">${examLabel(r.exam)}</span><span class="priority-badge ${cls}">${i+1}位</span></div>
+      <div class="priority-meta">${r.reason}${r.cnt?` ・ ${r.cnt}回受験済み`:''}</div>
+    </div>`;
+  }).join('') || '<div class="search-empty">データ準備中</div>';
+}
+
+function renderLogCalendar() {
+  const byDay = {};
+  LOG.attempts.forEach(a => { (byDay[a.date] = byDay[a.date] || []).push(a); });
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const dow = today.getDay();
+  const end = new Date(today); end.setDate(end.getDate() + (6 - dow));
+  const start = new Date(end); start.setDate(start.getDate() - 7*26 + 1);
+
+  const wdLabels = ['','月','','水','','金',''];
+  let html = `<div class="cal-wd">${wdLabels.map(l=>`<span>${l}</span>`).join('')}</div><div class="cal-grid">`;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const items = byDay[key] || [];
+    const c = items.length;
+    const lvl = c===0?0:c===1?1:c===2?2:c<=4?3:4;
+    const title = c > 0 ? `${key} ${c}件（${items.map(a=>attemptTotal(a)+'点').join('/')}）` : key;
+    html += `<div class="cal-cell ${lvl?'hm'+lvl:''}" title="${esc(title)}"></div>`;
+  }
+  html += '</div>';
+  $('lg-cal').innerHTML = html;
+  const wrap = $('lg-cal-wrap');
+  wrap.scrollLeft = wrap.scrollWidth;
+
+  const s = streaks();
+  $('lg-cal-meta').textContent = `学習日 ${s.total}日 ・ 現在 ${s.current}日連続 ・ 最長 ${s.longest}日連続`;
+}
+
+function renderLogHistory() {
+  const sorted = [...LOG.attempts].sort((a,b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+  const shown = sorted.slice(0, logHistoryLimit);
+  const rest = sorted.length - shown.length;
+  const rowsHtml = shown.map(a => {
+    const total = attemptTotal(a);
+    return `<div class="q-row">
+      <div class="q-row-top">
+        <span class="badge-diff" style="background:${total>=PASS_MARK?'var(--success)':'var(--error)'}">${total}</span>
+        <span class="q-exam">${examLabel(a.exam)} ・ ${a.date}</span>
+      </div>
+      <div class="q-summary">${SUBJ_ORDER.map(k=>`${SUBJ_SHORT[k]}${a.scores[k]}`).join(' / ')}</div>
+      <button class="log-del" onclick="deleteLogEntry('${a.id}')">削除</button>
+    </div>`;
+  }).join('');
+  const more = rest > 0 ? `<button class="chip" style="margin-top:8px" onclick="toggleLogHistory()">もっと見る（残り${rest}件）</button>` : '';
+  $('lg-history').innerHTML = (rowsHtml + more) || '<div class="search-empty">まだ記録がありません</div>';
+}
+
 // ---------- Search ----------
 function renderSearch(query) {
   if (!query || query.trim().length < 1) {
@@ -504,6 +1135,7 @@ function subjName(id) { const s = DB.stats.subjects.find(x=>x.id===id); return s
 function showApp() {
   $('login-screen').classList.remove('active');
   $('app-shell').classList.add('active');
+  logLoad();
   renderDashboard();
 }
 
@@ -516,6 +1148,7 @@ function initTabs() {
       const tab = btn.dataset.tab;
       $('view-' + tab).classList.add('active');
       if (tab === 'subject' && !currentSubject) goSubject(DB.stats.subjects[0].id);
+      else if (tab === 'log') renderLogView();
     });
   });
 }
@@ -523,10 +1156,40 @@ function initTabs() {
 (async function init() {
   await loadData();
   initTabs();
+  initLogForm();
   $('login-btn').addEventListener('click', () => doLogin($('pw-input').value));
   $('pw-input').addEventListener('keypress', e => { if (e.key === 'Enter') $('login-btn').click(); });
   $('logout-btn').addEventListener('click', doLogout);
   $('search-input').addEventListener('input', e => renderSearch(e.target.value));
+
+  $('lg-save').addEventListener('click', saveLogEntry);
+  document.querySelectorAll('#lg-range-chips .chip').forEach(c => c.addEventListener('click', () => setChartRange(c.dataset.range)));
+  $('lg-export').addEventListener('click', logExport);
+  $('lg-import-merge').addEventListener('click', () => { logImportMode = 'merge'; $('lg-import-file').click(); });
+  $('lg-import-replace').addEventListener('click', () => {
+    if (confirm(`現在の${LOG.attempts.length}件をすべて削除して置き換えます。よろしいですか？`)) {
+      logImportMode = 'replace';
+      $('lg-import-file').click();
+    }
+  });
+  $('lg-import-file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    file.text().then(text => {
+      const result = logIngest(text, logImportMode);
+      $('lg-io-msg').textContent = result.msg;
+      $('lg-io-msg').className = 'log-msg ' + (result.ok ? 'ok' : 'err');
+      if (result.ok) renderLogView();
+    });
+  });
+  $('lg-text-export').addEventListener('click', () => { $('lg-text').value = JSON.stringify(LOG, null, 2); });
+  $('lg-text-import').addEventListener('click', () => {
+    const result = logIngest($('lg-text').value, 'merge');
+    $('lg-io-msg').textContent = result.msg;
+    $('lg-io-msg').className = 'log-msg ' + (result.ok ? 'ok' : 'err');
+    if (result.ok) renderLogView();
+  });
 
   $('loading').style.display = 'none';
   if (isLoggedIn()) { showApp(); } else { $('login-screen').classList.add('active'); }
