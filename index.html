@@ -13,8 +13,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','H
   --success:#27ae60;--error:#e74c3c;--warn:#e67e22;
   --text:#2c3e50;--text-light:#7f8c8d;--border:#dee2e6;
   --bg:#f0f2f5;--card:#fff;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08);
-  --dA:#2ecc71;--dB:#8bc34a;--dC:#f1c40f;--dD:#e67e22;--dE:#e74c3c;
-  --subj-L:#1B4F8A;--subj-R:#16a085;--subj-F:#8e44ad;--subj-T:#e67e22;--subj-E:#27ae60;--subj-S:#c0392b
+  --dA:#2ecc71;--dB:#8bc34a;--dC:#f1c40f;--dD:#e67e22;--dE:#e74c3c
 }
 .screen{display:none;min-height:100vh;width:100%}
 .screen.active{display:flex;flex-direction:column}
@@ -157,17 +156,18 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
 .cal-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);grid-auto-columns:11px;gap:3px}
 .cal-cell{width:11px;height:11px;border-radius:2px;background:#eef0f2}
 
-.tm-wrap{position:relative;width:100%;height:min(65vh,520px);min-height:340px;background:radial-gradient(ellipse at 50% 40%,#0a0e1a 0%,#05060a 70%);border-radius:var(--radius);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-#tm-svg{width:100%;height:100%;display:block;touch-action:none}
-.tm-hex-cell{cursor:pointer}
-.tm-node circle{cursor:pointer}
-.tm-node.selected circle:last-child{stroke:#fff;stroke-width:2}
-.tm-lbl-lazy{display:none}
-#tm-svg.zoomed-in .tm-lbl-lazy{display:inline}
-.tm-hint{background:rgba(10,14,26,.85);color:#8092a8;border:1px solid rgba(124,232,255,.2)}
-.tm-controls{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
-.tm-ctrl-btn{width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:var(--shadow);border:none;font-size:18px;font-weight:700;color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
-.tm-hint{position:absolute;left:10px;top:10px;font-size:10.5px;color:var(--text-light);background:rgba(255,255,255,.85);padding:4px 8px;border-radius:8px;pointer-events:none}
+.syl-chip-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.syl-chip{flex-shrink:0}
+.syl-item{border-bottom:1px solid var(--border);padding:10px 0}
+.syl-item:last-child{border-bottom:none}
+.syl-item-row{display:flex;align-items:baseline;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.syl-item-no{color:var(--text-light);font-size:12px;font-weight:700;flex-shrink:0;width:22px}
+.syl-item-title{font-weight:600;font-size:14px;flex:1}
+.syl-item-detail{display:none;white-space:pre-line;font-size:12.5px;color:var(--text-light);line-height:1.8;margin-top:8px;padding-left:30px}
+.syl-item.open .syl-item-detail{display:block}
+.syl-item.open .syl-item-title{color:var(--primary)}
+.syl-sub-title{font-size:13px;font-weight:700;color:var(--primary);margin:14px 0 2px}
+.syl-sub-title:first-child{margin-top:0}
 </style>
 </head>
 <body>
@@ -182,7 +182,7 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
     <div class="login-logo">
       <span class="icon">FH882</span>
       <h1>Reference</h1>
-      <p>Ver.1.2.0</p>
+      <p>Ver.1.3.0</p>
     </div>
     <div class="form-group">
       <label class="form-label" for="pw-input">パスワード</label>
@@ -205,7 +205,7 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
     <button class="tab-btn" data-tab="subject">分野</button>
     <button class="tab-btn" data-tab="search">検索</button>
     <button class="tab-btn" data-tab="log">学習</button>
-    <button class="tab-btn" data-tab="terms">頻出</button>
+    <button class="tab-btn" data-tab="syllabus">試験範囲</button>
   </div>
   <div class="app-content">
 
@@ -338,27 +338,17 @@ table.heatmap td.topic-name{text-align:left;font-weight:600;color:var(--text);po
       </div>
     </div>
 
-    <div class="view" id="view-terms">
-      <div class="stat-row">
-        <div class="stat-card"><span class="stat-num" id="tm-total">-</span><span class="stat-label">総語数</span></div>
-        <div class="stat-card"><span class="stat-num" id="tm-subjcount">-</span><span class="stat-label">分野数</span></div>
+    <div class="view" id="view-syllabus">
+      <div class="chip-row" id="syl-mode-chips">
+        <button class="chip active" data-mode="written">学科試験</button>
+        <button class="chip" data-mode="practical">実技試験</button>
       </div>
+      <div class="syl-chip-row" id="syl-subject-chips"></div>
       <div class="card">
-        <div class="card-title">分野 <span class="estimate-tag">OCRベース概算</span></div>
-        <div class="chip-row" id="tm-legend" style="flex-wrap:wrap;overflow:visible"></div>
+        <div class="card-title" id="syl-section-title">-</div>
+        <div id="syl-items"></div>
       </div>
-      <div class="tm-wrap">
-        <svg id="tm-svg" viewBox="0 0 520 440"></svg>
-        <div class="tm-hint">ドラッグ・ピンチで探索／タップで詳細</div>
-        <div class="tm-controls">
-          <button class="tm-ctrl-btn" id="tm-zoom-in" type="button">+</button>
-          <button class="tm-ctrl-btn" id="tm-zoom-out" type="button">−</button>
-          <button class="tm-ctrl-btn" id="tm-reset" type="button" style="font-size:13px">⤢</button>
-        </div>
-      </div>
-      <div class="card" id="tm-detail-card">
-        <div id="tm-detail"><div class="search-empty">六角形は分野、円は用語です。タップして詳細を見る／ドラッグやピンチで自由に探索できます</div></div>
-      </div>
+      <div class="priority-meta" id="syl-source" style="margin-top:8px"></div>
     </div>
 
   </div>
@@ -371,9 +361,6 @@ const $ = id => document.getElementById(id);
 const DIFF_ORDER = ['A','B','C','D','E'];
 const DIFF_COLOR = {A:'var(--dA)',B:'var(--dB)',C:'var(--dC)',D:'var(--dD)',E:'var(--dE)'};
 const DIFF_LABEL = {A:'簡単',B:'やや簡単',C:'普通',D:'やや難',E:'難しい'};
-const SUBJ_COLOR = {L:'var(--subj-L)',R:'var(--subj-R)',F:'var(--subj-F)',T:'var(--subj-T)',E:'var(--subj-E)',S:'var(--subj-S)'};
-const TM_GLOW_COLOR = {L:'#4ea8ff',R:'#2dd4bf',F:'#c084fc',T:'#ffa94d',E:'#4ade80',S:'#ff6b7c'};
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 const LOG_KEY = 'fh882_studylog';
 const LOG_APP = 'fh882-studylog';
@@ -392,28 +379,9 @@ let logChartRange = 10;
 let logHistoryLimit = 20;
 let logImportMode = 'merge';
 
-let termsMapBuilt = false;
-let tmTermLayout = [];
-let tmEdges = [];
-let tmEdgeGeom = [];
-let tmParticles = [];
-let tmHexCenters = {};
-let tmClusterFit = {};
-let camera = { x: 0, y: 0, scale: 1 };
-let tmAnimHandle = null;
-let tmParticleHandle = null;
-let tmPointers = new Map();
-let tmDragStart = null;
-let tmDragMoved = false;
-let tmPinchStartDist = null;
-let tmPinchStartScale = null;
-let tmPinchAnchor = null;
-const TM_W = 520, TM_H = 440;
-const TM_RING_R = 300;
-const TM_MIN_SCALE = 0.12, TM_MAX_SCALE = 6;
-const TM_LABEL_SCALE = 1.6;
-const TM_TOP_LABELED = 8;
-const TM_EDGE_TOPK = 4;
+let SYLLABUS = null;
+let sylMode = 'written';
+let sylSubject = 'L';
 
 function isLoggedIn() { return sessionStorage.getItem('fh882_auth') === '1'; }
 function doLogin(pw) {
@@ -1148,449 +1116,58 @@ function renderLogHistory() {
   $('lg-history').innerHTML = (rowsHtml + more) || '<div class="search-empty">まだ記録がありません</div>';
 }
 
-// ---------- Terms map ----------
-function buildHexCenters() {
-  const cx = TM_W / 2, cy = TM_H / 2;
-  SUBJ_ORDER.forEach((k, i) => {
-    const a = Math.PI / 180 * (60 * i - 90);
-    tmHexCenters[k] = { x: cx + TM_RING_R * Math.cos(a), y: cy + TM_RING_R * Math.sin(a), angle: a };
-  });
+// ---------- Syllabus (試験科目及びその範囲) ----------
+async function loadSyllabus() {
+  if (SYLLABUS) return;
+  SYLLABUS = await fetch('data/syllabus.json').then(r => r.json());
 }
 
-function computeCoOccurEdges(terms) {
-  const qmap = new Map();
-  terms.forEach((t, i) => {
-    (t.exams || []).forEach(e => {
-      if (!qmap.has(e)) qmap.set(e, []);
-      qmap.get(e).push(i);
-    });
-  });
-  const pairWeight = new Map();
-  qmap.forEach(idxs => {
-    const uniq = [...new Set(idxs)];
-    if (uniq.length < 2) return;
-    for (let a = 0; a < uniq.length; a++) {
-      for (let b = a + 1; b < uniq.length; b++) {
-        const i = Math.min(uniq[a], uniq[b]), j = Math.max(uniq[a], uniq[b]);
-        const key = i + '_' + j;
-        pairWeight.set(key, (pairWeight.get(key) || 0) + 1);
-      }
-    }
-  });
-  const byNode = new Map();
-  pairWeight.forEach((w, key) => {
-    const [i, j] = key.split('_').map(Number);
-    if (!byNode.has(i)) byNode.set(i, []);
-    if (!byNode.has(j)) byNode.set(j, []);
-    byNode.get(i).push([w, j]);
-    byNode.get(j).push([w, i]);
-  });
-  const keep = new Map();
-  byNode.forEach((lst, n) => {
-    lst.sort((a, b) => b[0] - a[0]);
-    lst.slice(0, TM_EDGE_TOPK).forEach(([w, other]) => {
-      const key = Math.min(n, other) + '_' + Math.max(n, other);
-      keep.set(key, pairWeight.get(key));
-    });
-  });
-  return [...keep.entries()].map(([key, w]) => {
-    const [i, j] = key.split('_').map(Number);
-    return { i, j, w };
-  });
-}
-
-function tmForceSettle(list, center, edges, iterations = 160) {
-  const REPEL = 900, LINK_STRENGTH = 0.06, DAMPING = 0.8, REPEL_CUTOFF = 70;
-  const EDGE_DIST = 20, EDGE_STRENGTH = 0.035, MAX_SPEED = 5;
-  for (const n of list) { n.vx = 0; n.vy = 0; }
-  for (let iter = 0; iter < iterations; iter++) {
-    for (const n of list) { n.fx = 0; n.fy = 0; }
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i], b = list[j];
-        const dx = a.x - b.x, dy = a.y - b.y;
-        let distSq = dx * dx + dy * dy;
-        if (distSq > REPEL_CUTOFF * REPEL_CUTOFF) continue;
-        if (distSq < 4) distSq = 4;
-        const dist = Math.sqrt(distSq);
-        const f = REPEL / distSq;
-        const fx = (dx / dist) * f, fy = (dy / dist) * f;
-        a.fx += fx; a.fy += fy;
-        b.fx -= fx; b.fy -= fy;
-      }
-    }
-    for (const e of edges) {
-      const a = list[e.i], b = list[e.j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const diff = clamp(dist - EDGE_DIST, -40, 40);
-      const str = EDGE_STRENGTH * Math.min(2.2, 1 + e.w / 8);
-      const fx = (dx / dist) * diff * str, fy = (dy / dist) * diff * str;
-      a.fx += fx; a.fy += fy;
-      b.fx -= fx; b.fy -= fy;
-    }
-    for (const n of list) {
-      const dx = n.x - center.x, dy = n.y - center.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const diff = clamp(dist - n.idealDist, -40, 40);
-      n.fx += -(dx / dist) * diff * LINK_STRENGTH;
-      n.fy += -(dy / dist) * diff * LINK_STRENGTH;
-    }
-    for (const n of list) {
-      n.vx = (n.vx + n.fx) * DAMPING;
-      n.vy = (n.vy + n.fy) * DAMPING;
-      const speed = Math.hypot(n.vx, n.vy);
-      if (speed > MAX_SPEED) { n.vx = n.vx / speed * MAX_SPEED; n.vy = n.vy / speed * MAX_SPEED; }
-      n.x += n.vx;
-      n.y += n.vy;
-    }
-  }
-}
-
-function layoutAllTerms() {
-  tmTermLayout = [];
-  tmEdges = [];
-  SUBJ_ORDER.forEach(k => {
-    const center = tmHexCenters[k];
-    const terms = (DB.terms || []).filter(t => t.subject === k).sort((a, b) => b.count - a.count);
-    if (!terms.length) return;
-    const counts = terms.map(t => t.count);
-    const cMin = Math.min(...counts), cMax = Math.max(...counts);
-    const list = terms.map((t, i) => {
-      const angle = i * 137.508 * Math.PI / 180;
-      const norm = cMax > cMin ? Math.sqrt((t.count - cMin) / (cMax - cMin)) : 0.5;
-      const idealDist = 15 + (1 - norm) * 65;
-      const initR = 8 * Math.sqrt(i + 1);
-      return {
-        idx: 0, term: t.term, count: t.count, subject: k, exams: t.exams || [], note: t.note || '',
-        x: center.x + initR * Math.cos(angle),
-        y: center.y + initR * Math.sin(angle),
-        idealDist,
-        nodeR: 3 + norm * 11,
-        labeled: i < TM_TOP_LABELED
-      };
-    });
-    const localEdges = computeCoOccurEdges(terms);
-    tmForceSettle(list, center, localEdges);
-    const offset = tmTermLayout.length;
-    list.forEach(t => { t.idx = tmTermLayout.length; tmTermLayout.push(t); });
-    localEdges.forEach(e => tmEdges.push({ a: offset + e.i, b: offset + e.j, w: e.w, subject: k }));
-  });
-}
-
-function tmComputeFits() {
-  tmClusterFit = {};
-  SUBJ_ORDER.forEach(k => {
-    const c = tmHexCenters[k];
-    let maxR = 30;
-    tmTermLayout.filter(t => t.subject === k).forEach(t => {
-      maxR = Math.max(maxR, Math.hypot(t.x - c.x, t.y - c.y) + t.nodeR);
-    });
-    tmClusterFit[k] = { r: maxR };
-  });
-}
-
-function tmEdgeCurve(a, b) {
-  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const curve = Math.min(dist * 0.18, 26);
-  const nx = -dy / dist, ny = dx / dist;
-  return { ax: a.x, ay: a.y, bx: b.x, by: b.y, cx: mx + nx * curve, cy: my + ny * curve };
-}
-
-function renderTermsSvg() {
-  const ringHtml = SUBJ_ORDER.map((k, i) => {
-    const a = tmHexCenters[k], b = tmHexCenters[SUBJ_ORDER[(i + 1) % SUBJ_ORDER.length]];
-    return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" style="stroke:rgba(124,232,255,.25);stroke-width:1"/>`;
-  }).join('');
-
-  const spokeHtml = tmTermLayout.map(t => {
-    const c = tmHexCenters[t.subject];
-    return `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${t.x.toFixed(1)}" y2="${t.y.toFixed(1)}" style="stroke:${TM_GLOW_COLOR[t.subject]};stroke-width:.4;opacity:.08"/>`;
-  }).join('');
-
-  const maxW = tmEdges.reduce((m, e) => Math.max(m, e.w), 1);
-  tmEdgeGeom = tmEdges.map(e => {
-    const a = tmTermLayout[e.a], b = tmTermLayout[e.b];
-    return { ...tmEdgeCurve(a, b), subject: e.subject, w: e.w };
-  });
-  const edgeHtml = tmEdgeGeom.map((g, i) => {
-    const norm = g.w / maxW;
-    const width = (0.6 + norm * 1.8).toFixed(2);
-    const op = (0.12 + norm * 0.4).toFixed(2);
-    return `<path id="tm-edge-${i}" d="M${g.ax.toFixed(1)},${g.ay.toFixed(1)} Q${g.cx.toFixed(1)},${g.cy.toFixed(1)} ${g.bx.toFixed(1)},${g.by.toFixed(1)}" style="fill:none;stroke:${TM_GLOW_COLOR[g.subject]};stroke-width:${width};opacity:${op}"/>`;
-  }).join('');
-
-  tmParticles = tmEdgeGeom
-    .map((g, i) => ({ i, w: g.w }))
-    .sort((a, b) => b.w - a.w)
-    .slice(0, 90)
-    .map(p => ({ edge: p.i, t: Math.random(), speed: 0.0016 + Math.random() * 0.0018 }));
-  const particleHtml = tmParticles.map((p, i) => {
-    const g = tmEdgeGeom[p.edge];
-    return `<circle id="tm-particle-${i}" cx="${g.ax.toFixed(1)}" cy="${g.ay.toFixed(1)}" r="1.4" style="fill:#fff;opacity:.85"/>`;
-  }).join('');
-
-  const hubHtml = SUBJ_ORDER.map(k => {
-    const c = tmHexCenters[k];
-    const fit = tmClusterFit[k] || { r: 60 };
-    const dx = Math.cos(c.angle), dy = Math.sin(c.angle);
-    const anchor = dx > 0.3 ? 'start' : dx < -0.3 ? 'end' : 'middle';
-    const baseline = dy < -0.3 ? 'auto' : dy > 0.3 ? 'hanging' : 'middle';
-    const lx = c.x + dx * (fit.r + 16);
-    const ly = c.y + dy * (fit.r + 16);
-    return `<g class="tm-hex-cell" data-subject="${k}">
-      <circle cx="${c.x}" cy="${c.y}" r="${fit.r.toFixed(1)}" style="fill:transparent;pointer-events:all"/>
-      <circle cx="${c.x}" cy="${c.y}" r="16" style="fill:${TM_GLOW_COLOR[k]};opacity:.18"/>
-      <circle cx="${c.x}" cy="${c.y}" r="7" style="fill:${TM_GLOW_COLOR[k]}"/>
-      <circle cx="${c.x}" cy="${c.y}" r="7" style="fill:none;stroke:#0a0e1a;stroke-width:1.3;opacity:.5"/>
-      <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" style="font-size:12px;font-weight:800;fill:${TM_GLOW_COLOR[k]};dominant-baseline:${baseline}">${esc(subjName(k))}</text>
-    </g>`;
-  }).join('');
-
-  const nodeHtml = tmTermLayout.map(t => {
-    const glow = `<circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${(t.nodeR * (t.labeled ? 2.4 : 1.8)).toFixed(1)}" style="fill:${TM_GLOW_COLOR[t.subject]};opacity:${t.labeled ? .28 : .16}"/>`;
-    return `<g class="tm-node${t.labeled ? ' tm-node-glow' : ''}" data-idx="${t.idx}">
-      ${glow}
-      <circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="${t.nodeR.toFixed(1)}" style="fill:${TM_GLOW_COLOR[t.subject]}"/>
-      <text class="${t.labeled ? '' : 'tm-lbl-lazy'}" x="${t.x.toFixed(1)}" y="${(t.y + t.nodeR + 8).toFixed(1)}" text-anchor="middle" style="font-size:7px;fill:#d9e6f0;font-weight:600">${esc(t.term)}</text>
-    </g>`;
-  }).join('');
-
-  $('tm-svg').innerHTML = `<g id="tm-camera-g" transform="translate(0,0) scale(1)">${ringHtml}${spokeHtml}${edgeHtml}${hubHtml}${nodeHtml}${particleHtml}</g>`;
-}
-
-function renderTermsLegend() {
-  $('tm-legend').innerHTML = SUBJ_ORDER.map(k =>
-    `<button class="chip" style="border-color:${SUBJ_COLOR[k]};color:${SUBJ_COLOR[k]}" onclick="tmFocusHex('${k}')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SUBJ_COLOR[k]};margin-right:5px"></span>${esc(subjName(k))}</button>`
+function renderSylChips() {
+  const list = sylMode === 'written' ? SYLLABUS.written : SYLLABUS.practical;
+  const current = list.find(x => x.id === sylSubject) ? sylSubject : list[0].id;
+  sylSubject = current;
+  $('syl-subject-chips').innerHTML = list.map(x =>
+    `<button class="chip syl-chip${x.id === sylSubject ? ' active' : ''}" onclick="selectSylSubject('${x.id}')">${sylMode === 'written' ? SUBJ_SHORT[x.id] || x.name : x.id + '　' + x.name}</button>`
   ).join('');
-  $('tm-total').textContent = (DB.terms || []).length;
-  $('tm-subjcount').textContent = SUBJ_ORDER.length;
 }
 
-function tmApplyCamera() {
-  const g = $('tm-camera-g');
-  if (g) g.setAttribute('transform', `translate(${camera.x.toFixed(2)},${camera.y.toFixed(2)}) scale(${camera.scale.toFixed(3)})`);
-  $('tm-svg').classList.toggle('zoomed-in', camera.scale > TM_LABEL_SCALE);
+function renderSylItems() {
+  const list = sylMode === 'written' ? SYLLABUS.written : SYLLABUS.practical;
+  const section = list.find(x => x.id === sylSubject) || list[0];
+  $('syl-section-title').textContent = sylMode === 'written' ? section.name : `${section.id}　${section.name}`;
+  $('syl-items').innerHTML = section.items.map((it, i) => `
+    <div class="syl-item" id="syl-item-${i}">
+      <div class="syl-item-row" onclick="toggleSylItem(${i})">
+        <span class="syl-item-no">${esc(it.no)}</span>
+        <span class="syl-item-title">${esc(it.title)}</span>
+      </div>
+      <div class="syl-item-detail">${esc(it.detail)}</div>
+    </div>`).join('');
+  $('syl-source').textContent = SYLLABUS.source;
 }
 
-function tmAnimateCamera(tx, ty, ts, duration = 300) {
-  if (tmAnimHandle) cancelAnimationFrame(tmAnimHandle);
-  const start = { x: camera.x, y: camera.y, scale: camera.scale };
-  const t0 = performance.now();
-  function step(now) {
-    const p = Math.min(1, (now - t0) / duration);
-    const e = 1 - Math.pow(1 - p, 3);
-    camera.x = start.x + (tx - start.x) * e;
-    camera.y = start.y + (ty - start.y) * e;
-    camera.scale = start.scale + (ts - start.scale) * e;
-    tmApplyCamera();
-    tmAnimHandle = p < 1 ? requestAnimationFrame(step) : null;
-  }
-  tmAnimHandle = requestAnimationFrame(step);
+function toggleSylItem(i) {
+  $('syl-item-' + i).classList.toggle('open');
 }
 
-function tmFitCamera() {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  tmTermLayout.forEach(t => {
-    minX = Math.min(minX, t.x - t.nodeR); maxX = Math.max(maxX, t.x + t.nodeR);
-    minY = Math.min(minY, t.y - t.nodeR); maxY = Math.max(maxY, t.y + t.nodeR);
-  });
-  SUBJ_ORDER.forEach(k => {
-    const c = tmHexCenters[k];
-    minX = Math.min(minX, c.x - 30); maxX = Math.max(maxX, c.x + 30);
-    minY = Math.min(minY, c.y - 30); maxY = Math.max(maxY, c.y + 30);
-  });
-  const pad = 30;
-  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-  const bw = maxX - minX, bh = maxY - minY;
-  const scale = clamp(Math.min(TM_W / bw, TM_H / bh), TM_MIN_SCALE, TM_MAX_SCALE);
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  return { x: TM_W / 2 - scale * cx, y: TM_H / 2 - scale * cy, scale };
+function selectSylMode(mode) {
+  sylMode = mode;
+  sylSubject = mode === 'written' ? SUBJ_ORDER[0] : 'I';
+  document.querySelectorAll('#syl-mode-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.mode === mode));
+  renderSylChips();
+  renderSylItems();
 }
 
-function tmFocusHex(subjectId) {
-  const center = tmHexCenters[subjectId];
-  const fit = tmClusterFit[subjectId];
-  if (!center || !fit) return;
-  const scale = clamp(Math.min(TM_W, TM_H) / (fit.r * 2.6), TM_MIN_SCALE, TM_MAX_SCALE);
-  tmAnimateCamera(TM_W / 2 - scale * center.x, TM_H / 2 - scale * center.y, scale, 350);
+function selectSylSubject(id) {
+  sylSubject = id;
+  renderSylChips();
+  renderSylItems();
 }
 
-function tmResetView() {
-  const fit = tmFitCamera();
-  tmAnimateCamera(fit.x, fit.y, fit.scale, 300);
-}
-
-function tmZoomBy(factor) {
-  const targetScale = clamp(camera.scale * factor, TM_MIN_SCALE, TM_MAX_SCALE);
-  const anchor = { x: TM_W / 2, y: TM_H / 2 };
-  const worldX = (anchor.x - camera.x) / camera.scale;
-  const worldY = (anchor.y - camera.y) / camera.scale;
-  tmAnimateCamera(anchor.x - targetScale * worldX, anchor.y - targetScale * worldY, targetScale, 180);
-}
-
-function tmSelectTerm(idx) {
-  const t = tmTermLayout[idx];
-  if (!t) return;
-  document.querySelectorAll('.tm-node.selected').forEach(n => n.classList.remove('selected'));
-  const el = document.querySelector(`.tm-node[data-idx="${idx}"]`);
-  if (el) el.classList.add('selected');
-  const exams = (t.exams || []).slice(0, 20).map(e => {
-    const [exam, num] = e.split('-');
-    return `<span class="exam-chip">${examLabel(exam)} 問${num}</span>`;
-  }).join('');
-  const more = (t.exams || []).length > 20 ? `<div style="font-size:11px;color:var(--text-light);margin-top:4px">他${t.exams.length - 20}件</div>` : '';
-  const related = tmEdges
-    .filter(e => e.a === idx || e.b === idx)
-    .sort((a, b) => b.w - a.w)
-    .slice(0, 8)
-    .map(e => {
-      const otherIdx = e.a === idx ? e.b : e.a;
-      const other = tmTermLayout[otherIdx];
-      return `<span class="exam-chip" style="cursor:pointer" onclick="tmSelectTerm(${otherIdx})">${esc(other.term)} <span style="color:var(--text-light)">×${e.w}</span></span>`;
-    }).join('');
-  $('tm-detail').innerHTML = `
-    <div class="card-title">${esc(t.term)} <span class="estimate-tag">OCRベース概算</span></div>
-    <div class="priority-meta" style="margin-bottom:8px">${esc(subjName(t.subject))} ・ 出現${t.count}回</div>
-    ${t.note ? `<div style="font-size:12.5px;color:var(--text);margin-bottom:8px">${esc(t.note)}</div>` : ''}
-    ${related ? `<div class="section-h" style="margin:8px 0 4px">よく一緒に出題される用語</div><div class="term-exams">${related}</div>` : ''}
-    <div class="section-h" style="margin:8px 0 4px">出題箇所</div>
-    <div class="term-exams">${exams}</div>${more}
-    <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="goSubject('${t.subject}')">この分野を見る</button>
-  `;
-}
-
-function tmViewboxPoint(svg, clientX, clientY) {
-  const pt = svg.createSVGPoint();
-  pt.x = clientX; pt.y = clientY;
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: 0, y: 0 };
-  const p = pt.matrixTransform(ctm.inverse());
-  return { x: p.x, y: p.y };
-}
-
-function tmOnPointerDown(e) {
-  const svg = $('tm-svg');
-  svg.setPointerCapture(e.pointerId);
-  const p = tmViewboxPoint(svg, e.clientX, e.clientY);
-  tmPointers.set(e.pointerId, p);
-  if (tmPointers.size === 1) {
-    tmDragStart = p;
-    tmDragMoved = false;
-  } else if (tmPointers.size === 2) {
-    const pts = [...tmPointers.values()];
-    tmPinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-    tmPinchStartScale = camera.scale;
-    tmPinchAnchor = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
-  }
-}
-
-function tmOnPointerMove(e) {
-  if (!tmPointers.has(e.pointerId)) return;
-  const svg = $('tm-svg');
-  const p = tmViewboxPoint(svg, e.clientX, e.clientY);
-  const prev = tmPointers.get(e.pointerId);
-  tmPointers.set(e.pointerId, p);
-
-  if (tmPointers.size === 2) {
-    const pts = [...tmPointers.values()];
-    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-    if (tmPinchStartDist > 0) {
-      const targetScale = clamp(tmPinchStartScale * (dist / tmPinchStartDist), TM_MIN_SCALE, TM_MAX_SCALE);
-      const worldX = (tmPinchAnchor.x - camera.x) / camera.scale;
-      const worldY = (tmPinchAnchor.y - camera.y) / camera.scale;
-      camera.scale = targetScale;
-      camera.x = tmPinchAnchor.x - targetScale * worldX;
-      camera.y = tmPinchAnchor.y - targetScale * worldY;
-      tmApplyCamera();
-    }
-    tmDragMoved = true;
-  } else if (tmPointers.size === 1) {
-    const dx = p.x - prev.x, dy = p.y - prev.y;
-    camera.x += dx; camera.y += dy;
-    tmApplyCamera();
-    if (Math.hypot(p.x - tmDragStart.x, p.y - tmDragStart.y) > 4) tmDragMoved = true;
-  }
-}
-
-function tmOnPointerUp(e) {
-  const hadOnePointer = tmPointers.size === 1;
-  tmPointers.delete(e.pointerId);
-  if (tmPointers.size === 1) {
-    tmDragStart = [...tmPointers.values()][0];
-    tmDragMoved = true;
-  } else if (tmPointers.size === 0) {
-    if (hadOnePointer && !tmDragMoved) {
-      const nodeEl = e.target.closest && e.target.closest('.tm-node');
-      const hexEl = e.target.closest && e.target.closest('.tm-hex-cell');
-      if (nodeEl) tmSelectTerm(Number(nodeEl.dataset.idx));
-      else if (hexEl) tmFocusHex(hexEl.dataset.subject);
-    }
-    tmDragStart = null; tmDragMoved = false; tmPinchStartDist = null;
-  }
-}
-
-function tmOnWheel(e) {
-  e.preventDefault();
-  const svg = $('tm-svg');
-  const p = tmViewboxPoint(svg, e.clientX, e.clientY);
-  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-  const targetScale = clamp(camera.scale * factor, TM_MIN_SCALE, TM_MAX_SCALE);
-  const worldX = (p.x - camera.x) / camera.scale;
-  const worldY = (p.y - camera.y) / camera.scale;
-  camera.scale = targetScale;
-  camera.x = p.x - targetScale * worldX;
-  camera.y = p.y - targetScale * worldY;
-  tmApplyCamera();
-}
-
-function tmWirePointerEvents() {
-  const svg = $('tm-svg');
-  svg.addEventListener('pointerdown', tmOnPointerDown);
-  svg.addEventListener('pointermove', tmOnPointerMove);
-  svg.addEventListener('pointerup', tmOnPointerUp);
-  svg.addEventListener('pointercancel', tmOnPointerUp);
-  svg.addEventListener('wheel', tmOnWheel, { passive: false });
-}
-
-function tmStartParticles() {
-  if (tmParticleHandle) return;
-  function step() {
-    for (let i = 0; i < tmParticles.length; i++) {
-      const p = tmParticles[i];
-      p.t += p.speed;
-      if (p.t > 1) p.t -= 1;
-      const g = tmEdgeGeom[p.edge];
-      const omt = 1 - p.t;
-      const x = omt * omt * g.ax + 2 * omt * p.t * g.cx + p.t * p.t * g.bx;
-      const y = omt * omt * g.ay + 2 * omt * p.t * g.cy + p.t * p.t * g.by;
-      const el = document.getElementById('tm-particle-' + i);
-      if (el) { el.setAttribute('cx', x.toFixed(1)); el.setAttribute('cy', y.toFixed(1)); }
-    }
-    tmParticleHandle = requestAnimationFrame(step);
-  }
-  tmParticleHandle = requestAnimationFrame(step);
-}
-
-function tmStopParticles() {
-  if (tmParticleHandle) { cancelAnimationFrame(tmParticleHandle); tmParticleHandle = null; }
-}
-
-function renderTermsView() {
-  if (termsMapBuilt) { tmStartParticles(); return; }
-  termsMapBuilt = true;
-  buildHexCenters();
-  layoutAllTerms();
-  tmComputeFits();
-  renderTermsSvg();
-  renderTermsLegend();
-  const fit = tmFitCamera();
-  camera.x = fit.x; camera.y = fit.y; camera.scale = fit.scale;
-  tmApplyCamera();
-  tmWirePointerEvents();
-  tmStartParticles();
+async function renderSyllabusView() {
+  await loadSyllabus();
+  renderSylChips();
+  renderSylItems();
 }
 
 // ---------- Search ----------
@@ -1657,8 +1234,7 @@ function initTabs() {
       $('view-' + tab).classList.add('active');
       if (tab === 'subject' && !currentSubject) goSubject(DB.stats.subjects[0].id);
       else if (tab === 'log') renderLogView();
-      else if (tab === 'terms') renderTermsView();
-      if (tab !== 'terms') tmStopParticles();
+      else if (tab === 'syllabus' && !SYLLABUS) renderSyllabusView();
     });
   });
 }
@@ -1701,9 +1277,7 @@ function initTabs() {
     if (result.ok) renderLogView();
   });
 
-  $('tm-zoom-in').addEventListener('click', () => tmZoomBy(1.4));
-  $('tm-zoom-out').addEventListener('click', () => tmZoomBy(1 / 1.4));
-  $('tm-reset').addEventListener('click', tmResetView);
+  document.querySelectorAll('#syl-mode-chips .chip').forEach(c => c.addEventListener('click', () => selectSylMode(c.dataset.mode)));
 
   $('loading').style.display = 'none';
   if (isLoggedIn()) { showApp(); } else { $('login-screen').classList.add('active'); }
